@@ -1,0 +1,212 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String
+
+  // OAuth (for future use)
+  googleId      String?   @unique
+  avatarUrl     String?
+
+  // Subscription (for future use)
+  plan          String    @default("free") // free, pro, business
+  creditsRemaining Int    @default(2)
+  subscriptionId String?
+
+  // Relationships
+  videos        Video[]
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+
+  @@index([email])
+}
+
+model Video {
+  id            String    @id @default(cuid())
+
+  // Basic Info
+  title         String
+  description   String?   @db.Text
+  originalFilename String?
+
+  // Source
+  sourceType    String    // "upload", "zoom", "youtube", "meet", "vimeo"
+  sourceUrl     String?
+
+  // File Info
+  fileUrl       String?   // Stored video file
+  fileSize      Int?      // bytes
+  mimeType      String?
+
+  // Video Metadata
+  duration      Int?      // seconds
+  width         Int?
+  height        Int?
+  fps           Float?
+  hasAudio      Boolean   @default(true)
+
+  // Processing
+  status        String    @default("pending") // pending, uploading, processing, completed, failed
+  processingStartedAt DateTime?
+  processingCompletedAt DateTime?
+  errorMessage  String?   @db.Text
+
+  // Cost Tracking (for future analytics)
+  transcriptCost Float    @default(0)
+  aiCost        Float     @default(0)
+  storageCost   Float     @default(0)
+  totalCost     Float     @default(0)
+
+  // Relationships
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  transcript    Transcript?
+  summary       Summary?
+  frames        Frame[]
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model Transcript {
+  id            String    @id @default(cuid())
+  videoId       String    @unique
+  video         Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  // Content
+  content       String    @db.Text
+  language      String?   @default("en")
+
+  // Structure (stored as JSON)
+  segments      Json?     // Array of {start, end, text, speaker}
+  speakers      Json?     // Speaker diarization data {id, name, segments}
+
+  // Source
+  source        String    // "platform", "deepgram", "manual"
+  sourceFormat  String?   // "vtt", "srt", "json"
+
+  // Quality Metrics
+  confidence    Float?    // Average confidence score
+  wordCount     Int?
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([videoId])
+}
+
+model Summary {
+  id                String   @id @default(cuid())
+  videoId           String   @unique
+  video             Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  // Markdown
+  markdown          String   @db.Text
+  markdownUrl       String?  // URL to .md file in storage
+
+  // Structured Content (stored as JSON)
+  executiveSummary  String   @db.Text
+  keyPoints         Json     // Array of strings
+  actionItems       Json?    // Array of {text, assignee?, dueDate?, timestamp}
+  topics            Json?    // Array of {name, startTime, endTime, description}
+
+  // Sentiment (for future analytics)
+  overallSentiment  String?  // positive, neutral, negative
+  sentimentScore    Float?   // -1 to 1
+
+  // Metadata
+  model             String   // AI model used
+  promptTokens      Int?
+  completionTokens  Int?
+
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([videoId])
+}
+
+model Frame {
+  id            String    @id @default(cuid())
+  videoId       String
+  video         Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  // Image Info
+  imageUrl      String
+  thumbnailUrl  String?
+  fileSize      Int?      // bytes
+  width         Int?
+  height        Int?
+
+  // Timing
+  timestamp     Int       // milliseconds from start
+  frameNumber   Int?
+
+  // Classification
+  frameType     String    @default("general") // slide, speaker, chart, whiteboard, screen_share, general
+  isKeyFrame    Boolean   @default(false)
+  importanceScore Float   @default(0.5) // 0-1
+
+  // Analysis
+  description   String?   @db.Text
+  extractedText String?   @db.Text // OCR results
+  objects       Json?     // Detected objects/entities
+
+  // Metadata
+  analyzed      Boolean   @default(false)
+  analysisModel String?
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+
+  @@index([videoId, timestamp])
+  @@index([videoId, isKeyFrame])
+}
+
+model ProcessingJob {
+  id            String    @id @default(cuid())
+  videoId       String
+
+  // Job Info
+  type          String    // "transcript", "frames", "analysis", "summary"
+  status        String    @default("queued") // queued, running, completed, failed
+  priority      Int       @default(0)
+
+  // Progress
+  progress      Float     @default(0) // 0-100
+  currentStep   String?
+
+  // Error Handling
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(3)
+  errorMessage  String?   @db.Text
+
+  // Timing
+  queuedAt      DateTime  @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  @@index([status, priority])
+  @@index([videoId])
+}
