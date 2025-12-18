@@ -1,133 +1,192 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { INITIAL_VIDEOS, MOCK_TRANSCRIPT } from '@/lib/mvp/constants';
-import { VideoRecord, VideoStatus, SourceType } from '@/lib/mvp/types';
 import UploadCard from '@/components/mvp/UploadCard';
-import VideoList from '@/components/mvp/VideoList';
-import SummaryView from '@/components/mvp/SummaryView';
-import { generateMeetingSummary, analyzeVideo } from '@/lib/mvp/geminiService';
+import NotesViewer from '@/components/mvp/NotesViewer';
+import LibraryView from '@/components/mvp/LibraryView';
+import { LoaderIcon, FolderIcon } from '@/components/mvp/Icons';
+
+type ViewState = 'idle' | 'processing' | 'viewing' | 'library';
+
+interface NotesData {
+  id: string;
+  title: string;
+  markdown: string;
+  html: string;
+  duration_seconds: number;
+  processed_at: string;
+}
 
 export default function DemoPage() {
-  const [videos, setVideos] = useState<VideoRecord[]>(INITIAL_VIDEOS);
-  const [selectedVideo, setSelectedVideo] = useState<VideoRecord | null>(null);
-  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [viewState, setViewState] = useState<ViewState>('idle');
+  const [currentNotes, setCurrentNotes] = useState<NotesData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [libraryCount, setLibraryCount] = useState<number | null>(null);
 
-  const handleUpload = useCallback(async (file: File | null, url: string | null, type: SourceType) => {
-    const newId = Math.random().toString(36).substring(7);
-    const title = file ? file.name.replace(/\.[^/.]+$/, "") : `Meeting from ${type}`;
+  // Fetch library count on mount
+  React.useEffect(() => {
+    fetch('/api/class-notes/library')
+      .then((res) => res.json())
+      .then((data) => setLibraryCount(Array.isArray(data) ? data.length : 0))
+      .catch(() => setLibraryCount(0));
+  }, []);
 
-    // Create a local URL for the file so the browser can play it immediately
-    // This simulates how a backend would return a cloud storage URL
-    const fileUrl = file ? URL.createObjectURL(file) : undefined;
+  const handleFileSelect = useCallback(async (file: File) => {
+    setViewState('processing');
+    setError(null);
 
-    // 1. Create Pending Record
-    const newVideo: VideoRecord = {
-      id: newId,
-      title: title,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      duration: "00:00",
-      status: VideoStatus.PROCESSING,
-      sourceType: type,
-      thumbnailUrl: 'https://picsum.photos/300/170?grayscale', // Placeholder
-      fileUrl: fileUrl, // Store the local URL
-    };
-
-    setVideos(prev => [newVideo, ...prev]);
-    setProcessingId(newId);
-
-    // 2. Process with Gemini API
     try {
-        let resultSummary;
-        let resultTimeline;
+      const formData = new FormData();
+      formData.append('file', file);
 
-        if (file) {
-            // Use Gemini to analyze the video file
-            const analysis = await analyzeVideo(file);
-            resultSummary = analysis.summary;
-            resultTimeline = analysis.timeline;
-        } else {
-             // Simulate Backend Processing for URLs
-             // In your local dev environment, this is where you'd POST to your API
-             await new Promise(resolve => setTimeout(resolve, 2000));
-             resultSummary = await generateMeetingSummary(MOCK_TRANSCRIPT);
-             resultTimeline = [
-                { timestamp: "00:05", description: "Introduction", isSlide: false, imageUrl: `https://picsum.photos/seed/${newId}1/400/225` },
-                { timestamp: "00:15", description: "Key Discussion", isSlide: true, imageUrl: `https://picsum.photos/seed/${newId}2/400/225` },
-             ];
-        }
+      const res = await fetch('/api/class-notes/process', {
+        method: 'POST',
+        body: formData,
+      });
 
-        setVideos(prev => prev.map(v => {
-            if (v.id === newId) {
-                return {
-                    ...v,
-                    status: VideoStatus.COMPLETED,
-                    duration: "10:25", // Mocked duration
-                    thumbnailUrl: `https://picsum.photos/seed/${newId}/300/170`,
-                    summary: resultSummary,
-                    timeline: resultTimeline
-                };
-            }
-            return v;
-        }));
-    } catch (error) {
-        console.error("Processing failed", error);
-        setVideos(prev => prev.map(v => {
-            if (v.id === newId) {
-                return { ...v, status: VideoStatus.FAILED };
-            }
-            return v;
-        }));
-    } finally {
-        setProcessingId(null);
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Processing failed');
+      }
+
+      const result = await res.json();
+
+      // Fetch the full notes for the processed video
+      const notesRes = await fetch(`/api/class-notes/${result.folder_name}`);
+      if (!notesRes.ok) {
+        throw new Error('Failed to load processed notes');
+      }
+
+      const notes: NotesData = await notesRes.json();
+      setCurrentNotes(notes);
+      setViewState('viewing');
+
+      // Update library count
+      setLibraryCount((prev) => (prev ?? 0) + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Processing failed');
+      setViewState('idle');
     }
+  }, []);
+
+  const handleViewFromLibrary = useCallback(async (id: string) => {
+    setViewState('processing');
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/class-notes/${id}`);
+      if (!res.ok) {
+        throw new Error('Failed to load notes');
+      }
+
+      const notes: NotesData = await res.json();
+      setCurrentNotes(notes);
+      setViewState('viewing');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load notes');
+      setViewState('library');
+    }
+  }, []);
+
+  const handleBackToIdle = useCallback(() => {
+    setViewState('idle');
+    setCurrentNotes(null);
+    setError(null);
   }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setSelectedVideo(null)}>
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">V</div>
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">VideoSum</h1>
-          </div>
-          <div className="flex items-center gap-4">
-             <div className="text-xs text-gray-500">
-                Client-Side MVP Demo
-             </div>
-             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
-                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" />
-             </div>
-          </div>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <button
+            onClick={handleBackToIdle}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
+              V
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+              VideoSum
+            </h1>
+          </button>
+          <div className="text-xs text-gray-500">Class Notes Processor</div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {selectedVideo ? (
-          <SummaryView
-            video={selectedVideo}
-            onBack={() => setSelectedVideo(null)}
-          />
-        ) : (
-          <div className="space-y-8 animate-fade-in">
-             <div className="text-center py-12">
-                <h2 className="text-4xl font-extrabold text-gray-900 mb-4 tracking-tight">Turn Video into Action</h2>
-                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                    The modern meeting recorder. Upload a video to see the
-                    <span className="font-semibold text-primary-600"> timeline and playback </span>
-                    functionality in action.
-                </p>
-             </div>
-
-            <UploadCard onUploadStart={handleUpload} />
-
-            <VideoList
-              videos={videos}
-              onSelect={setSelectedVideo}
-            />
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Error Banner */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            <p className="font-medium">Error</p>
+            <p className="text-sm">{error}</p>
           </div>
+        )}
+
+        {viewState === 'idle' && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="text-center py-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-3">
+                Class Notes Generator
+              </h2>
+              <p className="text-gray-600 max-w-xl mx-auto">
+                Upload a video lecture or meeting recording to automatically
+                generate structured notes with AI transcription and
+                summarization.
+              </p>
+            </div>
+
+            <UploadCard onFileSelect={handleFileSelect} />
+
+            {libraryCount !== null && libraryCount > 0 && (
+              <div className="text-center">
+                <button
+                  onClick={() => setViewState('library')}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <FolderIcon className="w-4 h-4" />
+                  View Library ({libraryCount} videos)
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {viewState === 'processing' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12">
+            <div className="flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-6">
+                <LoaderIcon className="w-8 h-8 text-blue-600 animate-spin" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Processing your video...
+              </h3>
+              <p className="text-gray-500 max-w-md">
+                This may take a few minutes depending on the video length. We're
+                extracting audio, transcribing, and generating notes.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {viewState === 'viewing' && currentNotes && (
+          <NotesViewer
+            id={currentNotes.id}
+            title={currentNotes.title}
+            markdown={currentNotes.markdown}
+            html={currentNotes.html}
+            durationSeconds={currentNotes.duration_seconds}
+            processedAt={currentNotes.processed_at}
+            onBack={handleBackToIdle}
+          />
+        )}
+
+        {viewState === 'library' && (
+          <LibraryView
+            onSelectVideo={handleViewFromLibrary}
+            onBack={handleBackToIdle}
+          />
         )}
       </main>
     </div>
