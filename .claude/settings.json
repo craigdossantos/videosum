@@ -1,8 +1,93 @@
 {
   "permissions": {
-    "allow": ["readFile", "listDir", "run:git"],
-    "ask":   ["writeFile", "run:pnpm", "run:node", "webFetch:docs.anthropic.com"],
-    "deny":  ["run:sudo", "access:systemOutsideRepo"]
+    "allow": [
+      "Read(//Users/craigdossantos/.claude/ai-dev-tasks/**)",
+      "Bash(mkdir:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git init:*)",
+      "Read(//Users/craigdossantos/.claude/**)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git commit:*)",
+      "Bash(cat:*)",
+      "Bash(git checkout:*)",
+      "Bash(npx create-next-app:*)",
+      "Bash(mv *.md .env.example AGENTS.md .temp-docs/)",
+      "Read(//private/tmp/**)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(npx:*)",
+      "Bash(timeout 15 npm run dev:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(git clone:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(chmod:*)",
+      "Bash(python3:*)",
+      "Bash(git merge:*)"
+    ],
+    "deny": [
+      "Run:sudo",
+      "Access:systemOutsideRepo"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/validate_bash.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/validate_file_write.py"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/validate_bash.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/validate_file_write.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/format_and_lint.py"
+          }
+        ]
+      }
+    ]
   },
   "mcpServers": {
     "puppeteer": {
@@ -11,7 +96,7 @@
     },
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/test"]
+      "args": ["-y", "@playwright/mcp@latest"]
     }
   }
 }

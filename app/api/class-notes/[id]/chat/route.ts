@@ -42,7 +42,21 @@ export async function POST(
       return NextResponse.json({ error: 'Class not found' }, { status: 404 });
     }
 
-    const markdown = await readFile(join(classDir, 'notes.md'), 'utf-8');
+    // Load transcript and notes
+    let transcript: string;
+    let notes: string;
+
+    try {
+      transcript = await readFile(join(classDir, 'transcript.txt'), 'utf-8');
+    } catch {
+      return NextResponse.json({ error: 'Transcript not found' }, { status: 404 });
+    }
+
+    try {
+      notes = await readFile(join(classDir, 'notes.md'), 'utf-8');
+    } catch {
+      notes = ''; // Notes are optional
+    }
 
     // Check for API key
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -57,20 +71,22 @@ export async function POST(
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2048,
-      system: `You are a helpful assistant discussing a class the user attended.
+      system: `You are a helpful assistant discussing a class the user attended. You have access to the full transcript of the class as your knowledge base.
 
-Here are the complete notes from the class:
+## Full Transcript
+${transcript}
 
-${markdown}
+${notes ? `## Summary Notes\n${notes}` : ''}
 
 Help the user:
-- Understand concepts from the class
-- Clarify any points they're confused about
+- Answer questions about anything discussed in the class
+- Clarify concepts they're confused about
+- Find specific moments or quotes from the class
 - Create quizzes to test their understanding
-- Explain how to do the exercises
+- Explain how to do any exercises mentioned
 - Connect ideas across different parts of the class
 
-Be conversational and helpful. Reference specific parts of the notes when relevant.`,
+Be conversational and helpful. Quote directly from the transcript when relevant. If something wasn't discussed in the class, let the user know.`,
       messages: [
         ...history.map((msg) => ({
           role: msg.role as 'user' | 'assistant',

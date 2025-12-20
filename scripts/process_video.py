@@ -57,9 +57,12 @@ def check_already_processed(output_dir: Path, file_hash: str) -> Path | None:
 
 def extract_audio(video_path: Path, audio_path: Path) -> float:
     """Extract audio from video using ffmpeg. Returns duration in seconds."""
+    # Use 64kbps for better transcription quality
+    # For files > 25MB, Whisper API will reject - user should use shorter clips
+    # 64kbps * 60sec * 50min / 8 / 1024 = ~23MB (safe for ~50min videos)
     cmd = [
         'ffmpeg', '-i', str(video_path),
-        '-vn', '-acodec', 'mp3', '-ar', '16000', '-ac', '1',
+        '-vn', '-acodec', 'mp3', '-ar', '16000', '-ac', '1', '-b:a', '64k',
         '-y', str(audio_path)
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -77,26 +80,90 @@ def extract_audio(video_path: Path, audio_path: Path) -> float:
     return float(result.stdout.strip())
 
 
-def transcribe(audio_path: Path) -> tuple[str, float]:
-    """Transcribe audio using OpenAI Whisper API. Returns (transcript, cost)."""
-    client = OpenAI()
-
-    # Get file size for cost estimation
+def split_audio(audio_path: Path, max_size_mb: int = 20) -> list[Path]:
+    """Split audio file into chunks under max_size_mb. Returns list of chunk paths."""
     file_size = audio_path.stat().st_size
+    max_size = max_size_mb * 1024 * 1024
 
+    if file_size <= max_size:
+        return [audio_path]
+
+    # Get duration
+    probe_cmd = [
+        'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+        '-of', 'default=noprint_wrappers=1:nokey=1', str(audio_path)
+    ]
+    result = subprocess.run(probe_cmd, capture_output=True, text=True)
+    duration = float(result.stdout.strip())
+
+    # Calculate chunk duration based on file size ratio
+    num_chunks = int(file_size / max_size) + 1
+    chunk_duration = duration / num_chunks
+
+    print(f"  Splitting into {num_chunks} chunks ({chunk_duration/60:.1f} min each)...", file=sys.stderr)
+
+    chunks = []
+    for i in range(num_chunks):
+        start_time = i * chunk_duration
+        chunk_path = audio_path.parent / f"chunk_{i:03d}.mp3"
+
+        cmd = [
+            'ffmpeg', '-i', str(audio_path),
+            '-ss', str(start_time),
+            '-t', str(chunk_duration),
+            '-acodec', 'mp3', '-ar', '16000', '-ac', '1', '-b:a', '64k',
+            '-y', str(chunk_path)
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg chunk failed: {result.stderr}")
+
+        chunks.append(chunk_path)
+
+    return chunks
+
+
+def transcribe_chunk(audio_path: Path, client: OpenAI) -> str:
+    """Transcribe a single audio chunk."""
     with open(audio_path, 'rb') as f:
         response = client.audio.transcriptions.create(
             model='whisper-1',
             file=f,
             response_format='text'
         )
+    return response
+
+
+def transcribe(audio_path: Path, progress_callback=None) -> tuple[str, float]:
+    """Transcribe audio using OpenAI Whisper API. Returns (transcript, cost)."""
+    client = OpenAI()
+
+    # Get file size for cost estimation
+    file_size = audio_path.stat().st_size
+
+    # Split into chunks if needed (20MB max per chunk)
+    chunks = split_audio(audio_path, max_size_mb=20)
+
+    transcripts = []
+    for i, chunk_path in enumerate(chunks):
+        if progress_callback:
+            progress_callback('transcribing', f'Transcribing chunk {i+1} of {len(chunks)}...', i + 1, len(chunks))
+
+        transcript = transcribe_chunk(chunk_path, client)
+        transcripts.append(transcript)
+
+        # Clean up chunk file if it's not the original
+        if chunk_path != audio_path:
+            chunk_path.unlink()
+
+    # Combine transcripts
+    full_transcript = "\n\n".join(transcripts)
 
     # Cost: $0.006 per minute (estimate based on file size)
-    # 16kHz mono mp3 is roughly 2 bytes per sample, 60 seconds
     duration_minutes = file_size / (16000 * 2 * 60)
     cost = duration_minutes * 0.006
 
-    return response, cost
+    return full_transcript, cost
 
 
 def generate_notes(transcript: str, duration_seconds: int) -> tuple[str, float]:
@@ -151,6 +218,107 @@ Format as clean Markdown."""
     cost = input_cost + output_cost
 
     return response.content[0].text, cost
+
+
+def transcript_to_html(transcript: str, title: str, duration_seconds: int) -> str:
+    """Convert raw transcript to readable HTML with styling."""
+    # Split transcript into paragraphs (double newlines or very long sections)
+    paragraphs = transcript.split('\n\n')
+
+    # If only one paragraph, try to split on sentence boundaries for readability
+    if len(paragraphs) <= 2:
+        # Split long text into chunks of ~500 chars at sentence boundaries
+        chunks = []
+        current_chunk = ""
+        sentences = re.split(r'(?<=[.!?])\s+', transcript)
+        for sentence in sentences:
+            if len(current_chunk) + len(sentence) > 500:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                current_chunk = sentence
+            else:
+                current_chunk += " " + sentence
+        if current_chunk:
+            chunks.append(current_chunk.strip())
+        paragraphs = chunks
+
+    html_paragraphs = [f'<p>{p.strip()}</p>' for p in paragraphs if p.strip()]
+    html_body = '\n'.join(html_paragraphs)
+
+    hours = int(duration_seconds // 3600)
+    minutes = int((duration_seconds % 3600) // 60)
+    duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} - Transcript</title>
+    <style>
+        :root {{
+            --bg: #ffffff;
+            --text: #1a1a1a;
+            --accent: #2563eb;
+            --muted: #666666;
+            --border: #e5e7eb;
+        }}
+        @media (prefers-color-scheme: dark) {{
+            :root {{
+                --bg: #1a1a1a;
+                --text: #e5e7eb;
+                --accent: #60a5fa;
+                --muted: #9ca3af;
+                --border: #374151;
+            }}
+        }}
+        * {{
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.8;
+            max-width: 750px;
+            margin: 0 auto;
+            padding: 2rem;
+            color: var(--text);
+            background: var(--bg);
+        }}
+        header {{
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }}
+        h1 {{
+            margin: 0 0 0.5rem 0;
+            font-size: 1.5rem;
+        }}
+        .meta {{
+            color: var(--muted);
+            font-size: 0.875rem;
+        }}
+        p {{
+            margin: 1rem 0;
+            text-align: justify;
+        }}
+        @media print {{
+            body {{
+                max-width: none;
+                padding: 1rem;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <header>
+        <h1>{title}</h1>
+        <div class="meta">Full Transcript | Duration: {duration_str}</div>
+    </header>
+    <article>
+{html_body}
+    </article>
+</body>
+</html>"""
 
 
 def markdown_to_html(markdown: str, title: str) -> str:
@@ -269,6 +437,15 @@ def markdown_to_html(markdown: str, title: str) -> str:
 </html>"""
 
 
+def emit_progress(step: str, message: str, progress: int = 0, total: int = 0):
+    """Emit a structured progress message for the frontend."""
+    data = {'step': step, 'message': message}
+    if total > 0:
+        data['progress'] = progress
+        data['total'] = total
+    print(f"PROGRESS:{json.dumps(data)}", file=sys.stderr, flush=True)
+
+
 def process_video(video_path: str, output_base: str) -> dict:
     """Main processing function."""
     video_path = Path(video_path).expanduser().resolve()
@@ -287,13 +464,14 @@ def process_video(video_path: str, output_base: str) -> dict:
     output_base.mkdir(parents=True, exist_ok=True)
 
     # Check for duplicates
-    print(f"Checking for duplicates...", file=sys.stderr)
+    emit_progress('checking', 'Checking for duplicates...')
     file_hash = get_file_hash(video_path)
     existing = check_already_processed(output_base, file_hash)
     if existing:
         return {
             'status': 'duplicate',
             'existing_folder': str(existing),
+            'folder_name': existing.name,
             'message': f'Already processed: {existing.name}'
         }
 
@@ -305,22 +483,22 @@ def process_video(video_path: str, output_base: str) -> dict:
     output_folder = output_base / folder_name
     output_folder.mkdir(exist_ok=True)
 
-    print(f"Processing: {video_path.name}", file=sys.stderr)
+    emit_progress('extracting', f'Extracting audio from {video_path.name}...')
 
     # Extract audio
-    print("  Extracting audio...", file=sys.stderr)
     audio_path = output_folder / 'audio.mp3'
     duration = extract_audio(video_path, audio_path)
-    print(f"  Duration: {int(duration // 60)} minutes", file=sys.stderr)
+    duration_min = int(duration // 60)
+    emit_progress('extracting', f'Audio extracted ({duration_min} minutes)')
 
     # Transcribe
-    print("  Transcribing with Whisper...", file=sys.stderr)
-    transcript, transcription_cost = transcribe(audio_path)
+    emit_progress('transcribing', 'Starting transcription with Whisper...')
+    transcript, transcription_cost = transcribe(audio_path, emit_progress)
     (output_folder / 'transcript.txt').write_text(transcript)
-    print(f"  Transcript: {len(transcript)} characters", file=sys.stderr)
+    emit_progress('transcribing', f'Transcription complete ({len(transcript):,} characters)')
 
-    # Generate notes
-    print("  Generating notes with Claude...", file=sys.stderr)
+    # Generate summary notes
+    emit_progress('summarizing', 'Generating summary notes with Claude...')
     notes_md, summarization_cost = generate_notes(transcript, int(duration))
     (output_folder / 'notes.md').write_text(notes_md)
 
@@ -328,9 +506,10 @@ def process_video(video_path: str, output_base: str) -> dict:
     title_match = re.search(r'^# (.+)$', notes_md, re.MULTILINE)
     title = title_match.group(1) if title_match else video_path.stem
 
-    # Generate HTML
-    html = markdown_to_html(notes_md, title)
-    (output_folder / 'notes.html').write_text(html)
+    # Generate HTML transcript (viewable in browser)
+    emit_progress('finalizing', 'Generating HTML transcript...')
+    html = transcript_to_html(transcript, title, int(duration))
+    (output_folder / 'transcript.html').write_text(html)
 
     # Clean up audio file (saves disk space)
     audio_path.unlink()
@@ -351,12 +530,12 @@ def process_video(video_path: str, output_base: str) -> dict:
     }
     (output_folder / 'metadata.json').write_text(json.dumps(metadata, indent=2))
 
-    print(f"  Done! Cost: ${total_cost:.2f}", file=sys.stderr)
-    print(f"  Output: {output_folder}", file=sys.stderr)
+    emit_progress('complete', f'Done! Cost: ${total_cost:.2f}')
 
     return {
         'status': 'success',
         'folder': str(output_folder),
+        'folder_name': output_folder.name,
         'title': title,
         'cost': total_cost
     }

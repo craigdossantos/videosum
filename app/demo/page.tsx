@@ -4,17 +4,125 @@ import React, { useState, useCallback } from 'react';
 import UploadCard from '@/components/mvp/UploadCard';
 import NotesViewer from '@/components/mvp/NotesViewer';
 import LibraryView from '@/components/mvp/LibraryView';
-import { LoaderIcon, FolderIcon } from '@/components/mvp/Icons';
+import { LoaderIcon, FolderIcon, CheckCircleIcon } from '@/components/mvp/Icons';
 
 type ViewState = 'idle' | 'processing' | 'viewing' | 'library';
 
 interface NotesData {
   id: string;
   title: string;
-  markdown: string;
-  html: string;
+  markdown: string;  // AI-generated summary
+  transcriptHtml: string;  // Full transcript HTML
   duration_seconds: number;
   processed_at: string;
+}
+
+interface ProgressState {
+  step: string;
+  message: string;
+  progress?: number;
+  total?: number;
+}
+
+const STEPS = [
+  { id: 'checking', label: 'Checking' },
+  { id: 'extracting', label: 'Extracting Audio' },
+  { id: 'transcribing', label: 'Transcribing' },
+  { id: 'summarizing', label: 'Generating Notes' },
+  { id: 'finalizing', label: 'Finalizing' },
+];
+
+function getStepIndex(stepId: string): number {
+  return STEPS.findIndex((s) => s.id === stepId);
+}
+
+function ProcessingView({ progress }: { progress: ProgressState }) {
+  const currentStepIndex = getStepIndex(progress.step);
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+      <div className="max-w-md mx-auto">
+        {/* Progress Steps */}
+        <div className="space-y-4 mb-8">
+          {STEPS.map((step, index) => {
+            const isComplete = index < currentStepIndex;
+            const isCurrent = index === currentStepIndex;
+            const isPending = index > currentStepIndex;
+
+            return (
+              <div key={step.id} className="flex items-center gap-4">
+                {/* Step indicator */}
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    isComplete
+                      ? 'bg-green-500 text-white'
+                      : isCurrent
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-200 text-gray-400'
+                  }`}
+                >
+                  {isComplete ? (
+                    <CheckCircleIcon className="w-5 h-5" />
+                  ) : isCurrent ? (
+                    <LoaderIcon className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <span className="text-sm font-medium">{index + 1}</span>
+                  )}
+                </div>
+
+                {/* Step label and message */}
+                <div className="flex-1 min-w-0">
+                  <div
+                    className={`font-medium ${
+                      isComplete
+                        ? 'text-green-700'
+                        : isCurrent
+                          ? 'text-blue-700'
+                          : 'text-gray-400'
+                    }`}
+                  >
+                    {step.label}
+                  </div>
+                  {isCurrent && (
+                    <div className="text-sm text-gray-500 truncate">
+                      {progress.message}
+                    </div>
+                  )}
+                </div>
+
+                {/* Chunk progress indicator */}
+                {isCurrent && progress.total && progress.total > 1 && (
+                  <div className="flex-shrink-0 text-sm text-blue-600 font-medium">
+                    {progress.progress}/{progress.total}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Progress bar for chunks */}
+        {progress.total && progress.total > 1 && progress.progress && (
+          <div className="mt-6">
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 transition-all duration-300"
+                style={{ width: `${(progress.progress / progress.total) * 100}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-2 text-center">
+              Processing chunk {progress.progress} of {progress.total}
+            </p>
+          </div>
+        )}
+
+        {/* Helpful message */}
+        <p className="text-center text-gray-500 text-sm mt-6">
+          This may take a few minutes for longer videos.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function DemoPage() {
@@ -22,6 +130,10 @@ export default function DemoPage() {
   const [currentNotes, setCurrentNotes] = useState<NotesData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [libraryCount, setLibraryCount] = useState<number | null>(null);
+  const [progress, setProgress] = useState<ProgressState>({
+    step: 'checking',
+    message: 'Starting...',
+  });
 
   // Fetch library count on mount
   React.useEffect(() => {
@@ -34,22 +146,86 @@ export default function DemoPage() {
   const handleFileSelect = useCallback(async (file: File) => {
     setViewState('processing');
     setError(null);
+    setProgress({ step: 'checking', message: 'Starting...' });
 
     try {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch('/api/class-notes/process', {
+      const response = await fetch('/api/class-notes/process', {
         method: 'POST',
         body: formData,
       });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Processing failed');
+      if (!response.ok) {
+        // For non-streaming error responses
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Processing failed');
+        }
+        throw new Error('Processing failed');
       }
 
-      const result = await res.json();
+      // Handle SSE stream
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let result: { folder_name?: string; status?: string; message?: string } | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.substring(6));
+
+              if (data.type === 'progress') {
+                setProgress({
+                  step: data.step,
+                  message: data.message,
+                  progress: data.progress,
+                  total: data.total,
+                });
+              } else if (data.type === 'complete') {
+                result = data;
+              } else if (data.type === 'error') {
+                throw new Error(data.error);
+              }
+            } catch (parseErr) {
+              if (parseErr instanceof Error && parseErr.message !== 'Unexpected end of JSON input') {
+                throw parseErr;
+              }
+            }
+          }
+        }
+      }
+
+      if (!result) {
+        throw new Error('No result received');
+      }
+
+      if (result.status === 'duplicate') {
+        // Handle duplicate - show existing notes
+        const notesRes = await fetch(`/api/class-notes/${result.folder_name}`);
+        if (!notesRes.ok) {
+          throw new Error('Failed to load existing notes');
+        }
+        const notes: NotesData = await notesRes.json();
+        setCurrentNotes(notes);
+        setViewState('viewing');
+        return;
+      }
 
       // Fetch the full notes for the processed video
       const notesRes = await fetch(`/api/class-notes/${result.folder_name}`);
@@ -72,6 +248,7 @@ export default function DemoPage() {
   const handleViewFromLibrary = useCallback(async (id: string) => {
     setViewState('processing');
     setError(null);
+    setProgress({ step: 'checking', message: 'Loading notes...' });
 
     try {
       const res = await fetch(`/api/class-notes/${id}`);
@@ -153,29 +330,14 @@ export default function DemoPage() {
           </div>
         )}
 
-        {viewState === 'processing' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12">
-            <div className="flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-6">
-                <LoaderIcon className="w-8 h-8 text-blue-600 animate-spin" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Processing your video...
-              </h3>
-              <p className="text-gray-500 max-w-md">
-                This may take a few minutes depending on the video length. We're
-                extracting audio, transcribing, and generating notes.
-              </p>
-            </div>
-          </div>
-        )}
+        {viewState === 'processing' && <ProcessingView progress={progress} />}
 
         {viewState === 'viewing' && currentNotes && (
           <NotesViewer
             id={currentNotes.id}
             title={currentNotes.title}
-            markdown={currentNotes.markdown}
-            html={currentNotes.html}
+            summaryMarkdown={currentNotes.markdown}
+            transcriptHtml={currentNotes.transcriptHtml}
             durationSeconds={currentNotes.duration_seconds}
             processedAt={currentNotes.processed_at}
             onBack={handleBackToIdle}

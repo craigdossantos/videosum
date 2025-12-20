@@ -23,8 +23,16 @@ interface ClassMetadata {
 
 interface ClassNotes extends ClassMetadata {
   id: string;
-  markdown: string;
-  html: string;
+  markdown: string;  // AI-generated summary (for download)
+  transcriptHtml: string;  // Full transcript HTML (for viewing)
+}
+
+async function readFileOrFallback(primary: string, fallback: string): Promise<string> {
+  try {
+    return await readFile(primary, 'utf-8');
+  } catch {
+    return await readFile(fallback, 'utf-8');
+  }
 }
 
 export async function GET(
@@ -44,10 +52,14 @@ export async function GET(
     }
 
     // Read all files in parallel
-    const [metadataContent, markdown, html] = await Promise.all([
+    // transcript.html is new format, notes.html is old format (fallback)
+    const [metadataContent, markdown, transcriptHtml] = await Promise.all([
       readFile(join(classDir, 'metadata.json'), 'utf-8'),
       readFile(join(classDir, 'notes.md'), 'utf-8'),
-      readFile(join(classDir, 'notes.html'), 'utf-8'),
+      readFileOrFallback(
+        join(classDir, 'transcript.html'),
+        join(classDir, 'notes.html')
+      ),
     ]);
 
     const metadata: ClassMetadata = JSON.parse(metadataContent);
@@ -56,7 +68,7 @@ export async function GET(
       id,
       ...metadata,
       markdown,
-      html,
+      transcriptHtml,
     };
 
     return NextResponse.json(response);
