@@ -33,7 +33,10 @@ export function createFileStorage(baseDir: string): ArtifactStorage {
   };
 
   const writeFile = async (contextId: string, data: ArtifactsFile) => {
-    await fs.writeFile(getPath(contextId), JSON.stringify(data, null, 2));
+    const filePath = getPath(contextId);
+    // Ensure the directory exists
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
   };
 
   return {
