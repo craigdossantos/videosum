@@ -1,9 +1,9 @@
-const { app, BrowserWindow, shell, Menu, dialog } = require('electron');
-const { spawn } = require('child_process');
-const path = require('path');
-const http = require('http');
+const { app, BrowserWindow, shell, Menu, dialog } = require("electron");
+const { fork } = require("child_process");
+const path = require("path");
+const http = require("http");
 
-const isDev = process.env.NODE_ENV === 'development';
+const isDev = process.env.NODE_ENV === "development";
 const PORT = 3005;
 
 let mainWindow;
@@ -15,18 +15,20 @@ function waitForServer(url, timeout = 30000) {
     const startTime = Date.now();
 
     const check = () => {
-      http.get(url, (res) => {
-        if (res.statusCode === 200) {
-          resolve();
-        } else {
-          retry();
-        }
-      }).on('error', retry);
+      http
+        .get(url, (res) => {
+          if (res.statusCode === 200) {
+            resolve();
+          } else {
+            retry();
+          }
+        })
+        .on("error", retry);
     };
 
     const retry = () => {
       if (Date.now() - startTime > timeout) {
-        reject(new Error('Server failed to start'));
+        reject(new Error("Server failed to start"));
       } else {
         setTimeout(check, 500);
       }
@@ -42,33 +44,39 @@ function startServer() {
 
   // In development, the server is started by concurrently, so we don't start it here
   if (!isPackaged) {
-    console.log('[Electron] Dev mode - server started by concurrently');
+    console.log("[Electron] Dev mode - server started by concurrently");
     return;
   }
 
-  // In production, run the standalone Next.js server
-  const serverPath = path.join(process.resourcesPath, 'standalone');
-  serverProcess = spawn('node', ['server.js'], {
+  // In production, run the standalone Next.js server using fork()
+  // fork() uses Electron's bundled Node.js instead of requiring system node
+  const serverPath = path.join(process.resourcesPath, "standalone");
+  const serverScript = path.join(serverPath, "server.js");
+
+  serverProcess = fork(serverScript, [], {
     cwd: serverPath,
     env: {
       ...process.env,
       PORT: PORT.toString(),
-      NODE_ENV: 'production',
+      NODE_ENV: "production",
     },
-    stdio: 'pipe',
+    stdio: ["pipe", "pipe", "pipe", "ipc"],
   });
 
-  serverProcess.stdout?.on('data', (data) => {
+  serverProcess.stdout?.on("data", (data) => {
     console.log(`[Server] ${data}`);
   });
 
-  serverProcess.stderr?.on('data', (data) => {
+  serverProcess.stderr?.on("data", (data) => {
     console.error(`[Server] ${data}`);
   });
 
-  serverProcess.on('error', (err) => {
-    console.error('Failed to start server:', err);
-    dialog.showErrorBox('Server Error', `Failed to start server: ${err.message}`);
+  serverProcess.on("error", (err) => {
+    console.error("Failed to start server:", err);
+    dialog.showErrorBox(
+      "Server Error",
+      `Failed to start server: ${err.message}`,
+    );
   });
 }
 
@@ -79,7 +87,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    title: 'VideoSum',
+    title: "VideoSum",
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -88,20 +96,20 @@ function createWindow() {
   });
 
   // Show window when ready
-  mainWindow.once('ready-to-show', () => {
+  mainWindow.once("ready-to-show", () => {
     mainWindow.show();
   });
 
   // Open external links in browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http')) {
+    if (url.startsWith("http")) {
       shell.openExternal(url);
-      return { action: 'deny' };
+      return { action: "deny" };
     }
-    return { action: 'allow' };
+    return { action: "allow" };
   });
 
-  mainWindow.on('closed', () => {
+  mainWindow.on("closed", () => {
     mainWindow = null;
   });
 }
@@ -112,80 +120,82 @@ function buildMenu() {
     {
       label: app.name,
       submenu: [
-        { role: 'about' },
-        { type: 'separator' },
+        { role: "about" },
+        { type: "separator" },
         {
-          label: 'Settings',
-          accelerator: 'CmdOrCtrl+,',
+          label: "Settings",
+          accelerator: "CmdOrCtrl+,",
           click: () => {
             // TODO: Open settings window for API keys
             dialog.showMessageBox(mainWindow, {
-              type: 'info',
-              title: 'Settings',
-              message: 'API keys are configured in ~/.videosum/config.json\n\nCreate this file with:\n{\n  "OPENAI_API_KEY": "sk-...",\n  "ANTHROPIC_API_KEY": "sk-ant-..."\n}',
+              type: "info",
+              title: "Settings",
+              message:
+                'API keys are configured in ~/.videosum/config.json\n\nCreate this file with:\n{\n  "OPENAI_API_KEY": "sk-...",\n  "ANTHROPIC_API_KEY": "sk-ant-..."\n}',
             });
           },
         },
-        { type: 'separator' },
-        { role: 'services' },
-        { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
-        { type: 'separator' },
-        { role: 'quit' },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" },
       ],
     },
     {
-      label: 'Edit',
+      label: "Edit",
       submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' },
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
       ],
     },
     {
-      label: 'View',
+      label: "View",
       submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
       ],
     },
     {
-      label: 'Window',
+      label: "Window",
       submenu: [
-        { role: 'minimize' },
-        { role: 'zoom' },
-        { type: 'separator' },
-        { role: 'front' },
+        { role: "minimize" },
+        { role: "zoom" },
+        { type: "separator" },
+        { role: "front" },
       ],
     },
     {
-      label: 'Help',
+      label: "Help",
       submenu: [
         {
-          label: 'Open Output Folder',
+          label: "Open Output Folder",
           click: () => {
-            const outputDir = process.env.CLASS_NOTES_DIR ||
-              path.join(require('os').homedir(), 'ClassNotes');
+            const outputDir =
+              process.env.CLASS_NOTES_DIR ||
+              path.join(require("os").homedir(), "ClassNotes");
             shell.openPath(outputDir);
           },
         },
         {
-          label: 'GitHub Repository',
+          label: "GitHub Repository",
           click: () => {
-            shell.openExternal('https://github.com/craigdossantos/videosum');
+            shell.openExternal("https://github.com/craigdossantos/videosum");
           },
         },
       ],
@@ -244,33 +254,33 @@ app.whenReady().then(async () => {
     await waitForServer(`http://localhost:${PORT}/demo`);
     mainWindow.loadURL(`http://localhost:${PORT}/demo`);
   } catch (err) {
-    dialog.showErrorBox('Error', 'Failed to start the application server.');
+    dialog.showErrorBox("Error", "Failed to start the application server.");
     app.quit();
   }
 });
 
 // Quit when all windows are closed
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
     app.quit();
   }
 });
 
-app.on('activate', () => {
+app.on("activate", () => {
   if (mainWindow === null) {
     createWindow();
   }
 });
 
 // Clean up server on quit
-app.on('before-quit', () => {
+app.on("before-quit", () => {
   if (serverProcess) {
     serverProcess.kill();
   }
 });
 
 // Handle uncaught errors
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err);
-  dialog.showErrorBox('Error', err.message);
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+  dialog.showErrorBox("Error", err.message);
 });
