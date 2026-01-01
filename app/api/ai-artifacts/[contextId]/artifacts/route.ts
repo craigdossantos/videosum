@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { homedir } from "os";
 import {
   createFileStorage,
   type CreateArtifactInput,
 } from "@/lib/ai-artifacts";
+import { getNotesDirectory } from "@/lib/settings";
 
-function getOutputDir(): string {
-  const configDir = process.env.CLASS_NOTES_DIR || "~/ClassNotes";
-  return configDir.replace(/^~/, homedir());
+// Create storage lazily to use current settings
+async function getStorage() {
+  const notesDir = await getNotesDirectory();
+  return createFileStorage(notesDir);
 }
-
-// Create storage instance
-const storage = createFileStorage(getOutputDir());
 
 /**
  * GET /api/ai-artifacts/[contextId]/artifacts
@@ -23,7 +21,9 @@ export async function GET(
 ) {
   try {
     const { contextId } = await params;
-    const artifacts = await storage.list(contextId);
+    const decodedId = decodeURIComponent(contextId);
+    const storage = await getStorage();
+    const artifacts = await storage.list(decodedId);
     return NextResponse.json({ artifacts });
   } catch (error) {
     console.error("Error listing artifacts:", error);
@@ -47,6 +47,7 @@ export async function POST(
 ) {
   try {
     const { contextId } = await params;
+    const decodedId = decodeURIComponent(contextId);
     const body: CreateArtifactInput = await request.json();
 
     if (!body.title || !body.content) {
@@ -56,7 +57,8 @@ export async function POST(
       );
     }
 
-    const artifact = await storage.save(contextId, body);
+    const storage = await getStorage();
+    const artifact = await storage.save(decodedId, body);
     return NextResponse.json({ artifact }, { status: 201 });
   } catch (error) {
     console.error("Error creating artifact:", error);
@@ -80,6 +82,7 @@ export async function DELETE(
 ) {
   try {
     const { contextId } = await params;
+    const decodedId = decodeURIComponent(contextId);
     const { searchParams } = new URL(request.url);
     const artifactId = searchParams.get("id");
 
@@ -90,7 +93,8 @@ export async function DELETE(
       );
     }
 
-    await storage.delete(contextId, artifactId);
+    const storage = await getStorage();
+    await storage.delete(decodedId, artifactId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting artifact:", error);

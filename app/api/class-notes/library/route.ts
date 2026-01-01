@@ -1,12 +1,8 @@
-import { NextResponse } from 'next/server';
-import { readdir, readFile } from 'fs/promises';
-import { join } from 'path';
-import { homedir } from 'os';
-
-function getOutputDir(): string {
-  const configDir = process.env.CLASS_NOTES_DIR || '~/ClassNotes';
-  return configDir.replace(/^~/, homedir());
-}
+import { NextResponse } from "next/server";
+import { readFile } from "fs/promises";
+import { join, relative } from "path";
+import { getNotesDirectory } from "@/lib/settings";
+import { glob } from "glob";
 
 interface ClassMetadata {
   title: string;
@@ -14,6 +10,8 @@ interface ClassMetadata {
   source_hash: string;
   duration_seconds: number;
   processed_at: string;
+  subfolder?: string;
+  relative_path?: string;
   costs: {
     transcription: number;
     summarization: number;
@@ -23,15 +21,20 @@ interface ClassMetadata {
 
 interface ClassRecord extends ClassMetadata {
   id: string;
+  folderPath: string;
 }
 
 export async function GET() {
   try {
-    const outputDir = getOutputDir();
+    const outputDir = await getNotesDirectory();
 
-    let folders;
+    // Find all metadata.json files recursively
+    let metadataFiles: string[];
     try {
-      folders = await readdir(outputDir, { withFileTypes: true });
+      metadataFiles = await glob("**/metadata.json", {
+        cwd: outputDir,
+        ignore: ["**/node_modules/**", "**/.git/**"],
+      });
     } catch {
       // Directory doesn't exist yet, return empty array
       return NextResponse.json([]);
@@ -39,15 +42,20 @@ export async function GET() {
 
     const classes: ClassRecord[] = [];
 
-    for (const folder of folders) {
-      if (!folder.isDirectory()) continue;
+    for (const metadataPath of metadataFiles) {
+      const fullPath = join(outputDir, metadataPath);
+      const folderPath = metadataPath.replace("/metadata.json", "");
 
-      const metadataPath = join(outputDir, folder.name, 'metadata.json');
       try {
-        const content = await readFile(metadataPath, 'utf-8');
+        const content = await readFile(fullPath, "utf-8");
         const metadata: ClassMetadata = JSON.parse(content);
+
+        // Use relative path as ID for compatibility
+        const id = folderPath;
+
         classes.push({
-          id: folder.name,
+          id,
+          folderPath,
           ...metadata,
         });
       } catch {
@@ -57,13 +65,14 @@ export async function GET() {
     }
 
     // Sort by processed_at descending (newest first)
-    classes.sort((a, b) =>
-      new Date(b.processed_at).getTime() - new Date(a.processed_at).getTime()
+    classes.sort(
+      (a, b) =>
+        new Date(b.processed_at).getTime() - new Date(a.processed_at).getTime(),
     );
 
     return NextResponse.json(classes);
   } catch (error) {
-    console.error('Library error:', error);
+    console.error("Library error:", error);
     return NextResponse.json([]);
   }
 }

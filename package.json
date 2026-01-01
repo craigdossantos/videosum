@@ -28,12 +28,30 @@
     },
     "files": [
       "electron/**/*",
-      ".next/**/*",
-      "public/**/*",
-      "scripts/**/*",
       "package.json"
     ],
     "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "standalone",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": ".next/static",
+        "to": "standalone/.next/static",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "public",
+        "to": "standalone/public",
+        "filter": [
+          "**/*"
+        ]
+      },
       {
         "from": "scripts",
         "to": "scripts",
@@ -44,16 +62,17 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "icon": "public/icon.icns",
       "target": [
         {
           "target": "dmg",
           "arch": [
-            "x64",
             "arm64"
           ]
         }
-      ]
+      ],
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
     },
     "win": {
       "icon": "public/icon.ico",
@@ -92,6 +111,7 @@
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "glob": "^13.0.0",
     "lucide-react": "^0.546.0",
     "next": "^15.5.9",
     "next-auth": "^5.0.0-beta.29",

@@ -3,10 +3,11 @@
 Process a video file and generate class notes.
 
 Usage:
-    python3 process_video.py <video_path> <output_dir>
+    python3 process_video.py <video_path> <output_dir> [--folder <subfolder>]
 
 Example:
-    python3 process_video.py ~/Videos/class.mp4 ~/ClassNotes
+    python3 process_video.py ~/Videos/class.mp4 ~/VideoSum
+    python3 process_video.py ~/Videos/class.mp4 ~/VideoSum --folder "School/Math 101"
 """
 
 import sys
@@ -15,6 +16,7 @@ import json
 import hashlib
 import subprocess
 import re
+import argparse
 from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
@@ -39,19 +41,18 @@ def get_file_hash(file_path: Path) -> str:
 
 
 def check_already_processed(output_dir: Path, file_hash: str) -> Path | None:
-    """Check if this video was already processed."""
+    """Check if this video was already processed (searches recursively)."""
     if not output_dir.exists():
         return None
-    for folder in output_dir.iterdir():
-        if folder.is_dir():
-            metadata_file = folder / 'metadata.json'
-            if metadata_file.exists():
-                try:
-                    metadata = json.loads(metadata_file.read_text())
-                    if metadata.get('source_hash') == file_hash:
-                        return folder
-                except (json.JSONDecodeError, IOError):
-                    continue
+
+    # Search recursively for metadata.json files
+    for metadata_file in output_dir.rglob('metadata.json'):
+        try:
+            metadata = json.loads(metadata_file.read_text())
+            if metadata.get('source_hash') == file_hash:
+                return metadata_file.parent
+        except (json.JSONDecodeError, IOError):
+            continue
     return None
 
 
@@ -184,7 +185,7 @@ def generate_notes(transcript: str, duration_seconds: int) -> tuple[str, float]:
 TRANSCRIPT ({duration_str}):
 {transcript}
 
-Create detailed notes with these sections:
+Create detailed notes with the following sections. IMPORTANT: Only include a section if there is CLEAR, RELEVANT content for it in the transcript. If a section doesn't apply, write "Not applicable for this recording." under that heading.
 
 # [Infer an appropriate title from the content]
 
@@ -193,14 +194,20 @@ Brief summary of what this class covered and key takeaways.
 
 ## Core Concepts
 Each major concept explained clearly. Use ### for each concept.
+- Only include if the transcript teaches specific concepts, theories, or frameworks
+- If this is a guided practice/meditation without conceptual teaching, mark as "Not applicable for this recording."
 
 ## Stories & Examples
 Any illustrative stories, examples, or case studies mentioned.
 For each, include the story and the lesson/point it illustrates.
+- Only include if the speaker shares specific stories, anecdotes, or detailed examples
+- If none are present, mark as "Not applicable for this recording."
 
 ## Exercises & Practices
 Step-by-step instructions for any exercises, practices, or techniques taught.
 Include purpose, duration if mentioned, and clear instructions.
+- Only include if specific exercises, meditations, or practices are guided/taught
+- If this is purely lecture/discussion without hands-on practice, mark as "Not applicable for this recording."
 
 ## Key Insights
 Bullet points of the most important takeaways.
@@ -208,7 +215,71 @@ Bullet points of the most important takeaways.
 ---
 
 Be detailed and capture the essence of the class. Do NOT include timestamps or speaker labels.
+Do NOT fabricate content - only include what is actually in the transcript.
 Format as clean Markdown."""
+        }]
+    )
+
+    # Cost calculation (Claude Sonnet pricing)
+    input_cost = (response.usage.input_tokens / 1_000_000) * 3.00
+    output_cost = (response.usage.output_tokens / 1_000_000) * 15.00
+    cost = input_cost + output_cost
+
+    return response.content[0].text, cost
+
+
+def generate_blog(transcript: str, duration_seconds: int) -> tuple[str, float]:
+    """Generate a first-person blog post from transcript. Returns (markdown_blog, cost)."""
+    client = Anthropic()
+
+    hours = int(duration_seconds // 3600)
+    minutes = int((duration_seconds % 3600) // 60)
+    duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+
+    response = client.messages.create(
+        model='claude-sonnet-4-20250514',
+        max_tokens=8192,
+        messages=[{
+            'role': 'user',
+            'content': f"""You are writing a blog post AS IF YOU ARE THE TEACHER/SPEAKER from this class recording.
+
+Write in FIRST PERSON perspective - use "I", "my", "we" as if you taught this class and are now sharing what you covered in a personal blog post.
+
+IMPORTANT VOICE GUIDELINES:
+- Write as if you're the instructor personally sharing your knowledge
+- Use conversational, warm tone like you're talking to a friend
+- Say "In today's class, I wanted to explore..." NOT "This class covers..."
+- Say "What I find fascinating is..." NOT "The instructor explains..."
+- Include personal touches like "One thing I always tell my students..."
+- Make it feel like a thoughtful blog post, not a summary
+
+TRANSCRIPT ({duration_str}):
+{transcript}
+
+---
+
+Create a well-structured blog post (1500-2500 words) with:
+
+# [Engaging Blog Title - Not Just the Topic Name]
+
+## Introduction
+Hook the reader. Share why this topic matters to you personally.
+
+## [Major Topic 1 - Use Descriptive Headings]
+Cover the first major area with depth. Include examples and stories I shared.
+
+## [Major Topic 2]
+Continue with other key areas...
+
+## [Additional sections as needed based on content]
+
+## Key Takeaways
+Wrap up with actionable insights readers can apply.
+
+---
+
+Remember: You ARE the teacher. Write with authority and personal experience.
+Format as clean, readable Markdown with proper spacing between sections."""
         }]
     )
 
@@ -446,8 +517,35 @@ def emit_progress(step: str, message: str, progress: int = 0, total: int = 0):
     print(f"PROGRESS:{json.dumps(data)}", file=sys.stderr, flush=True)
 
 
-def process_video(video_path: str, output_base: str) -> dict:
-    """Main processing function."""
+def sanitize_folder_name(name: str, max_length: int = 80) -> str:
+    """Sanitize a string for use as a folder name."""
+    # Remove or replace invalid characters
+    sanitized = re.sub(r'[<>:"/\\|?*]', '', name)
+    # Replace multiple spaces/dashes with single dash
+    sanitized = re.sub(r'[\s\-]+', ' ', sanitized)
+    # Trim and limit length
+    sanitized = sanitized.strip()[:max_length]
+    # Remove trailing periods/spaces (Windows doesn't like them)
+    sanitized = sanitized.rstrip('. ')
+    return sanitized
+
+
+def create_readable_folder_name(title: str, date: datetime = None) -> str:
+    """Create a human-readable folder name from title and date."""
+    date = date or datetime.now()
+    date_str = date.strftime('%Y-%m-%d')
+    clean_title = sanitize_folder_name(title)
+    return f"{date_str} - {clean_title}"
+
+
+def process_video(video_path: str, output_base: str, subfolder: str = None) -> dict:
+    """Main processing function.
+
+    Args:
+        video_path: Path to the video file
+        output_base: Base directory for notes (e.g., ~/VideoSum)
+        subfolder: Optional subfolder within output_base (e.g., "School/Math 101")
+    """
     video_path = Path(video_path).expanduser().resolve()
     output_base = Path(output_base).expanduser().resolve()
 
@@ -460,10 +558,13 @@ def process_video(video_path: str, output_base: str) -> dict:
     if not os.environ.get('ANTHROPIC_API_KEY'):
         raise EnvironmentError("ANTHROPIC_API_KEY not set")
 
-    # Create output directory
-    output_base.mkdir(parents=True, exist_ok=True)
+    # Determine the target directory (base + optional subfolder)
+    target_dir = output_base
+    if subfolder:
+        target_dir = output_base / subfolder
+    target_dir.mkdir(parents=True, exist_ok=True)
 
-    # Check for duplicates
+    # Check for duplicates in the entire output_base (not just target_dir)
     emit_progress('checking', 'Checking for duplicates...')
     file_hash = get_file_hash(video_path)
     existing = check_already_processed(output_base, file_hash)
@@ -475,12 +576,10 @@ def process_video(video_path: str, output_base: str) -> dict:
             'message': f'Already processed: {existing.name}'
         }
 
-    # Create output folder
-    timestamp = datetime.now().strftime('%Y-%m-%d')
-    # Clean filename for folder name
-    clean_name = re.sub(r'[^\w\-]', '-', video_path.stem[:30])
-    folder_name = f"{timestamp}-{clean_name}"
-    output_folder = output_base / folder_name
+    # Create a temporary output folder (will rename after we get the title)
+    timestamp = datetime.now()
+    temp_folder_name = f"_processing_{timestamp.strftime('%Y%m%d_%H%M%S')}"
+    output_folder = target_dir / temp_folder_name
     output_folder.mkdir(exist_ok=True)
 
     emit_progress('extracting', f'Extracting audio from {video_path.name}...')
@@ -506,6 +605,27 @@ def process_video(video_path: str, output_base: str) -> dict:
     title_match = re.search(r'^# (.+)$', notes_md, re.MULTILINE)
     title = title_match.group(1) if title_match else video_path.stem
 
+    # Rename folder to use the title
+    readable_folder_name = create_readable_folder_name(title, timestamp)
+    final_folder = target_dir / readable_folder_name
+
+    # Handle case where folder already exists (add suffix)
+    counter = 1
+    original_name = readable_folder_name
+    while final_folder.exists():
+        readable_folder_name = f"{original_name} ({counter})"
+        final_folder = target_dir / readable_folder_name
+        counter += 1
+
+    output_folder.rename(final_folder)
+    output_folder = final_folder
+    emit_progress('organizing', f'Created folder: {readable_folder_name}')
+
+    # Generate blog post (first-person narrative)
+    emit_progress('blogging', 'Creating blog post...')
+    blog_md, blog_cost = generate_blog(transcript, int(duration))
+    (output_folder / 'blog.md').write_text(blog_md)
+
     # Generate HTML transcript (viewable in browser)
     emit_progress('finalizing', 'Generating HTML transcript...')
     html = transcript_to_html(transcript, title, int(duration))
@@ -515,16 +635,23 @@ def process_video(video_path: str, output_base: str) -> dict:
     audio_path.unlink()
 
     # Save metadata
-    total_cost = transcription_cost + summarization_cost
+    total_cost = transcription_cost + summarization_cost + blog_cost
+
+    # Calculate relative path from output_base
+    relative_path = output_folder.relative_to(output_base)
+
     metadata = {
         'title': title,
         'source_file': video_path.name,
         'source_hash': file_hash,
         'duration_seconds': int(duration),
         'processed_at': datetime.now().isoformat(),
+        'subfolder': subfolder or '',
+        'relative_path': str(relative_path),
         'costs': {
             'transcription': round(transcription_cost, 4),
             'summarization': round(summarization_cost, 4),
+            'blog': round(blog_cost, 4),
             'total': round(total_cost, 4)
         }
     }
@@ -535,21 +662,33 @@ def process_video(video_path: str, output_base: str) -> dict:
     return {
         'status': 'success',
         'folder': str(output_folder),
-        'folder_name': output_folder.name,
+        'folder_name': readable_folder_name,
+        'relative_path': str(relative_path),
+        'subfolder': subfolder or '',
         'title': title,
         'cost': total_cost
     }
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print("Usage: python3 process_video.py <video_path> <output_dir>", file=sys.stderr)
-        print("\nExample:", file=sys.stderr)
-        print("  python3 process_video.py ~/Videos/class.mp4 ~/ClassNotes", file=sys.stderr)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='Process a video file and generate class notes.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+    python3 process_video.py ~/Videos/class.mp4 ~/VideoSum
+    python3 process_video.py ~/Videos/class.mp4 ~/VideoSum --folder "School/Math 101"
+        '''
+    )
+    parser.add_argument('video_path', help='Path to the video file')
+    parser.add_argument('output_dir', help='Base directory for notes output')
+    parser.add_argument('--folder', '-f', dest='subfolder',
+                        help='Subfolder within output_dir (e.g., "School/Math 101")')
+
+    args = parser.parse_args()
 
     try:
-        result = process_video(sys.argv[1], sys.argv[2])
+        result = process_video(args.video_path, args.output_dir, args.subfolder)
         print(json.dumps(result))
     except Exception as e:
         print(json.dumps({'status': 'error', 'message': str(e)}))

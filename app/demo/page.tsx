@@ -1,18 +1,26 @@
-'use client';
+"use client";
 
-import React, { useState, useCallback } from 'react';
-import UploadCard from '@/components/mvp/UploadCard';
-import NotesViewer from '@/components/mvp/NotesViewer';
-import LibraryView from '@/components/mvp/LibraryView';
-import { LoaderIcon, FolderIcon, CheckCircleIcon } from '@/components/mvp/Icons';
+import React, { useState, useCallback } from "react";
+import UploadCard from "@/components/mvp/UploadCard";
+import NotesViewer from "@/components/mvp/NotesViewer";
+import LibraryView from "@/components/mvp/LibraryView";
+import FolderView from "@/components/mvp/FolderView";
+import { SettingsModal } from "@/components/mvp/SettingsModal";
+import {
+  LoaderIcon,
+  FolderIcon,
+  CheckCircleIcon,
+  SettingsIcon,
+} from "@/components/mvp/Icons";
 
-type ViewState = 'idle' | 'processing' | 'viewing' | 'library';
+type ViewState = "idle" | "processing" | "viewing" | "library" | "folder";
 
 interface NotesData {
   id: string;
   title: string;
-  markdown: string;  // AI-generated summary
-  transcriptHtml: string;  // Full transcript HTML
+  markdown: string; // AI-generated summary
+  transcriptHtml: string; // Full transcript HTML
+  blogMarkdown?: string; // Blog post markdown (optional)
   duration_seconds: number;
   processed_at: string;
 }
@@ -25,11 +33,12 @@ interface ProgressState {
 }
 
 const STEPS = [
-  { id: 'checking', label: 'Checking' },
-  { id: 'extracting', label: 'Extracting Audio' },
-  { id: 'transcribing', label: 'Transcribing' },
-  { id: 'summarizing', label: 'Generating Notes' },
-  { id: 'finalizing', label: 'Finalizing' },
+  { id: "checking", label: "Checking" },
+  { id: "extracting", label: "Extracting Audio" },
+  { id: "transcribing", label: "Transcribing" },
+  { id: "summarizing", label: "Generating Notes" },
+  { id: "blogging", label: "Creating Blog Post" },
+  { id: "finalizing", label: "Finalizing" },
 ];
 
 function getStepIndex(stepId: string): number {
@@ -55,10 +64,10 @@ function ProcessingView({ progress }: { progress: ProgressState }) {
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                     isComplete
-                      ? 'bg-green-500 text-white'
+                      ? "bg-green-500 text-white"
                       : isCurrent
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-200 text-gray-400'
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-200 text-gray-400"
                   }`}
                 >
                   {isComplete ? (
@@ -75,10 +84,10 @@ function ProcessingView({ progress }: { progress: ProgressState }) {
                   <div
                     className={`font-medium ${
                       isComplete
-                        ? 'text-green-700'
+                        ? "text-green-700"
                         : isCurrent
-                          ? 'text-blue-700'
-                          : 'text-gray-400'
+                          ? "text-blue-700"
+                          : "text-gray-400"
                     }`}
                   >
                     {step.label}
@@ -107,7 +116,9 @@ function ProcessingView({ progress }: { progress: ProgressState }) {
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className="h-full bg-blue-500 transition-all duration-300"
-                style={{ width: `${(progress.progress / progress.total) * 100}%` }}
+                style={{
+                  width: `${(progress.progress / progress.total) * 100}%`,
+                }}
               />
             </div>
             <p className="text-xs text-gray-500 mt-2 text-center">
@@ -126,84 +137,93 @@ function ProcessingView({ progress }: { progress: ProgressState }) {
 }
 
 export default function DemoPage() {
-  const [viewState, setViewState] = useState<ViewState>('idle');
+  const [viewState, setViewState] = useState<ViewState>("idle");
   const [currentNotes, setCurrentNotes] = useState<NotesData | null>(null);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [libraryCount, setLibraryCount] = useState<number | null>(null);
   const [progress, setProgress] = useState<ProgressState>({
-    step: 'checking',
-    message: 'Starting...',
+    step: "checking",
+    message: "Starting...",
   });
+  const [showSettings, setShowSettings] = useState(false);
 
   // Fetch library count on mount
   React.useEffect(() => {
-    fetch('/api/class-notes/library')
+    fetch("/api/class-notes/library")
       .then((res) => res.json())
       .then((data) => setLibraryCount(Array.isArray(data) ? data.length : 0))
       .catch(() => setLibraryCount(0));
   }, []);
 
   const handleFileSelect = useCallback(async (file: File) => {
-    setViewState('processing');
+    setViewState("processing");
     setError(null);
-    setProgress({ step: 'checking', message: 'Starting...' });
+    setProgress({ step: "checking", message: "Starting..." });
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append("file", file);
 
-      const response = await fetch('/api/class-notes/process', {
-        method: 'POST',
+      const response = await fetch("/api/class-notes/process", {
+        method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
         // For non-streaming error responses
-        const contentType = response.headers.get('content-type');
-        if (contentType?.includes('application/json')) {
+        const contentType = response.headers.get("content-type");
+        if (contentType?.includes("application/json")) {
           const errData = await response.json();
-          throw new Error(errData.error || 'Processing failed');
+          throw new Error(errData.error || "Processing failed");
         }
-        throw new Error('Processing failed');
+        throw new Error("Processing failed");
       }
 
       // Handle SSE stream
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error('No response body');
+        throw new Error("No response body");
       }
 
       const decoder = new TextDecoder();
-      let buffer = '';
-      let result: { folder_name?: string; status?: string; message?: string } | null = null;
+      let buffer = "";
+      let result: {
+        folder_name?: string;
+        status?: string;
+        message?: string;
+      } | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          if (line.startsWith("data: ")) {
             try {
               const data = JSON.parse(line.substring(6));
 
-              if (data.type === 'progress') {
+              if (data.type === "progress") {
                 setProgress({
                   step: data.step,
                   message: data.message,
                   progress: data.progress,
                   total: data.total,
                 });
-              } else if (data.type === 'complete') {
+              } else if (data.type === "complete") {
                 result = data;
-              } else if (data.type === 'error') {
+              } else if (data.type === "error") {
                 throw new Error(data.error);
               }
             } catch (parseErr) {
-              if (parseErr instanceof Error && parseErr.message !== 'Unexpected end of JSON input') {
+              if (
+                parseErr instanceof Error &&
+                parseErr.message !== "Unexpected end of JSON input"
+              ) {
                 throw parseErr;
               }
             }
@@ -212,63 +232,74 @@ export default function DemoPage() {
       }
 
       if (!result) {
-        throw new Error('No result received');
+        throw new Error("No result received");
       }
 
-      if (result.status === 'duplicate') {
+      if (result.status === "duplicate") {
         // Handle duplicate - show existing notes
         const notesRes = await fetch(`/api/class-notes/${result.folder_name}`);
         if (!notesRes.ok) {
-          throw new Error('Failed to load existing notes');
+          throw new Error("Failed to load existing notes");
         }
         const notes: NotesData = await notesRes.json();
         setCurrentNotes(notes);
-        setViewState('viewing');
+        setViewState("viewing");
         return;
       }
 
       // Fetch the full notes for the processed video
       const notesRes = await fetch(`/api/class-notes/${result.folder_name}`);
       if (!notesRes.ok) {
-        throw new Error('Failed to load processed notes');
+        throw new Error("Failed to load processed notes");
       }
 
       const notes: NotesData = await notesRes.json();
       setCurrentNotes(notes);
-      setViewState('viewing');
+      setViewState("viewing");
 
       // Update library count
       setLibraryCount((prev) => (prev ?? 0) + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Processing failed');
-      setViewState('idle');
+      setError(err instanceof Error ? err.message : "Processing failed");
+      setViewState("idle");
     }
   }, []);
 
   const handleViewFromLibrary = useCallback(async (id: string) => {
-    setViewState('processing');
+    setViewState("processing");
     setError(null);
-    setProgress({ step: 'checking', message: 'Loading notes...' });
+    setProgress({ step: "checking", message: "Loading notes..." });
 
     try {
       const res = await fetch(`/api/class-notes/${id}`);
       if (!res.ok) {
-        throw new Error('Failed to load notes');
+        throw new Error("Failed to load notes");
       }
 
       const notes: NotesData = await res.json();
       setCurrentNotes(notes);
-      setViewState('viewing');
+      setViewState("viewing");
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load notes');
-      setViewState('library');
+      setError(err instanceof Error ? err.message : "Failed to load notes");
+      setViewState("library");
     }
   }, []);
 
   const handleBackToIdle = useCallback(() => {
-    setViewState('idle');
+    setViewState("idle");
     setCurrentNotes(null);
+    setCurrentFolderId(null);
     setError(null);
+  }, []);
+
+  const handleSelectFolder = useCallback((folderId: string) => {
+    setCurrentFolderId(folderId);
+    setViewState("folder");
+  }, []);
+
+  const handleBackToLibrary = useCallback(() => {
+    setCurrentFolderId(null);
+    setViewState("library");
   }, []);
 
   return (
@@ -287,7 +318,16 @@ export default function DemoPage() {
               VideoSum
             </h1>
           </button>
-          <div className="text-xs text-gray-500">Class Notes Processor</div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">Class Notes Processor</span>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Settings"
+            >
+              <SettingsIcon className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -301,7 +341,7 @@ export default function DemoPage() {
           </div>
         )}
 
-        {viewState === 'idle' && (
+        {viewState === "idle" && (
           <div className="space-y-8 animate-fade-in">
             <div className="text-center py-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-3">
@@ -319,7 +359,7 @@ export default function DemoPage() {
             {libraryCount !== null && libraryCount > 0 && (
               <div className="text-center">
                 <button
-                  onClick={() => setViewState('library')}
+                  onClick={() => setViewState("library")}
                   className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <FolderIcon className="w-4 h-4" />
@@ -330,27 +370,43 @@ export default function DemoPage() {
           </div>
         )}
 
-        {viewState === 'processing' && <ProcessingView progress={progress} />}
+        {viewState === "processing" && <ProcessingView progress={progress} />}
 
-        {viewState === 'viewing' && currentNotes && (
+        {viewState === "viewing" && currentNotes && (
           <NotesViewer
             id={currentNotes.id}
             title={currentNotes.title}
             summaryMarkdown={currentNotes.markdown}
             transcriptHtml={currentNotes.transcriptHtml}
+            blogMarkdown={currentNotes.blogMarkdown}
             durationSeconds={currentNotes.duration_seconds}
             processedAt={currentNotes.processed_at}
             onBack={handleBackToIdle}
           />
         )}
 
-        {viewState === 'library' && (
+        {viewState === "library" && (
           <LibraryView
             onSelectVideo={handleViewFromLibrary}
+            onSelectFolder={handleSelectFolder}
             onBack={handleBackToIdle}
           />
         )}
+
+        {viewState === "folder" && currentFolderId && (
+          <FolderView
+            folderId={currentFolderId}
+            onSelectVideo={handleViewFromLibrary}
+            onBack={handleBackToLibrary}
+          />
+        )}
       </main>
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   );
 }
