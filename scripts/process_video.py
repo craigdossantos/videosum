@@ -49,7 +49,7 @@ def find_executable(name: str) -> str:
 
 # Cache the executable paths
 FFMPEG = find_executable('ffmpeg')
-FFPROBE = find_executable(FFPROBE)
+FFPROBE = find_executable('ffprobe')
 
 
 def get_file_hash(file_path: Path) -> str:
@@ -653,7 +653,8 @@ def process_video(video_path: str, output_base: str, subfolder: str = None) -> d
     (output_folder / 'transcript.html').write_text(html)
 
     # Clean up audio file (saves disk space)
-    audio_path.unlink()
+    # Use output_folder (which was updated after rename) instead of audio_path
+    (output_folder / 'audio.mp3').unlink(missing_ok=True)
 
     # Save metadata
     total_cost = transcription_cost + summarization_cost + blog_cost
