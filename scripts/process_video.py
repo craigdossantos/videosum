@@ -31,6 +31,27 @@ from openai import OpenAI
 from anthropic import Anthropic
 
 
+def find_executable(name: str) -> str:
+    """Find an executable in common locations, falling back to PATH."""
+    common_paths = [
+        f'/opt/homebrew/bin/{name}',  # macOS ARM homebrew
+        f'/usr/local/bin/{name}',      # macOS Intel homebrew / Linux
+        f'/usr/bin/{name}',            # System path
+    ]
+
+    for path in common_paths:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+
+    # Fall back to PATH (for development / when already in PATH)
+    return name
+
+
+# Cache the executable paths
+FFMPEG = find_executable('ffmpeg')
+FFPROBE = find_executable(FFPROBE)
+
+
 def get_file_hash(file_path: Path) -> str:
     """Generate SHA256 hash of file for duplicate detection."""
     sha256 = hashlib.sha256()
@@ -62,7 +83,7 @@ def extract_audio(video_path: Path, audio_path: Path) -> float:
     # For files > 25MB, Whisper API will reject - user should use shorter clips
     # 64kbps * 60sec * 50min / 8 / 1024 = ~23MB (safe for ~50min videos)
     cmd = [
-        'ffmpeg', '-i', str(video_path),
+        FFMPEG, '-i', str(video_path),
         '-vn', '-acodec', 'mp3', '-ar', '16000', '-ac', '1', '-b:a', '64k',
         '-y', str(audio_path)
     ]
@@ -72,7 +93,7 @@ def extract_audio(video_path: Path, audio_path: Path) -> float:
 
     # Get duration
     probe_cmd = [
-        'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+        FFPROBE, '-v', 'error', '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1', str(audio_path)
     ]
     result = subprocess.run(probe_cmd, capture_output=True, text=True)
@@ -91,7 +112,7 @@ def split_audio(audio_path: Path, max_size_mb: int = 20) -> list[Path]:
 
     # Get duration
     probe_cmd = [
-        'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+        FFPROBE, '-v', 'error', '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1', str(audio_path)
     ]
     result = subprocess.run(probe_cmd, capture_output=True, text=True)
@@ -109,7 +130,7 @@ def split_audio(audio_path: Path, max_size_mb: int = 20) -> list[Path]:
         chunk_path = audio_path.parent / f"chunk_{i:03d}.mp3"
 
         cmd = [
-            'ffmpeg', '-i', str(audio_path),
+            FFMPEG, '-i', str(audio_path),
             '-ss', str(start_time),
             '-t', str(chunk_duration),
             '-acodec', 'mp3', '-ar', '16000', '-ac', '1', '-b:a', '64k',
