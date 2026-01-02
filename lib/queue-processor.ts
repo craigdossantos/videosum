@@ -71,6 +71,11 @@ class QueueProcessor {
     this.emit({ type: "state", state });
   }
 
+  // Public method to broadcast state updates (e.g., after manual item removal)
+  async broadcastState(): Promise<void> {
+    await this.emitState();
+  }
+
   async start(): Promise<void> {
     if (this.isRunning) {
       return;

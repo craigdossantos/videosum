@@ -87,6 +87,11 @@ export async function POST(request: NextRequest) {
 export async function DELETE() {
   try {
     const cleared = await clearCompleted();
+
+    // Broadcast state update to all connected clients
+    const processor = getQueueProcessor();
+    await processor.broadcastState();
+
     return NextResponse.json({ success: true, cleared });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

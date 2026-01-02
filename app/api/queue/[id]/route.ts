@@ -53,6 +53,10 @@ export async function DELETE(
       );
     }
 
+    // Broadcast state update to all connected clients
+    const processor = getQueueProcessor();
+    await processor.broadcastState();
+
     return NextResponse.json({ success: true, action: "removed" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -89,8 +93,9 @@ export async function PATCH(
       progress: undefined,
     });
 
-    // Start the processor if not already running
+    // Broadcast state update and start the processor
     const processor = getQueueProcessor();
+    await processor.broadcastState();
     processor.start();
 
     return NextResponse.json({ success: true, action: "retried" });
