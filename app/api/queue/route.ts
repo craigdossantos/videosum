@@ -68,8 +68,9 @@ export async function POST(request: NextRequest) {
     // Add to queue
     const addedItems = await addToQueue(queueInputs);
 
-    // Start the processor if not already running
+    // Broadcast state update and start the processor
     const processor = getQueueProcessor();
+    await processor.broadcastState();
     processor.start();
 
     return NextResponse.json({

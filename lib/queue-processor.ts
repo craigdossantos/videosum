@@ -78,8 +78,10 @@ class QueueProcessor {
 
   async start(): Promise<void> {
     if (this.isRunning) {
+      console.log("[queue-processor] Already running, skipping start");
       return;
     }
+    console.log("[queue-processor] Starting processor loop");
     this.isRunning = true;
     this.processingPromise = this.processLoop();
   }
@@ -110,6 +112,7 @@ class QueueProcessor {
   }
 
   private async processLoop(): Promise<void> {
+    console.log("[queue-processor] Process loop started");
     while (this.isRunning) {
       const item = await getNextPendingItem();
 
@@ -119,9 +122,13 @@ class QueueProcessor {
         continue;
       }
 
+      console.log(
+        `[queue-processor] Processing item: ${item.originalFileName}`,
+      );
       await this.processItem(item);
     }
 
+    console.log("[queue-processor] Process loop ended");
     await setProcessingState(false);
     await this.emitState();
   }
