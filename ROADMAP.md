@@ -1,36 +1,40 @@
 # VideoSum - Development Roadmap & TODO
 
-**Last Updated**: October 16, 2025
-**Status**: Planning Phase → Implementation
+**Last Updated**: January 5, 2026
+**Status**: MVP Development - Phase 4 In Progress
+
+> **Recent Update (Jan 5, 2026)**: Added typography improvements, collapsible sections, export functionality, and fixed video processing bugs. See CHANGELOG.md for details.
 
 ---
 
 ## Development Phases
 
-### Phase 0: Project Setup (Week 1)
+### Phase 0: Project Setup ✅ COMPLETED
+
 **Goal**: Establish development environment and core infrastructure
 
-- [ ] Initialize Next.js 15 project with TypeScript
-- [ ] Set up Tailwind CSS and shadcn/ui
-- [ ] Configure Prisma with PostgreSQL
-- [ ] Set up development database (local or Railway)
-- [ ] Configure environment variables
-- [ ] Set up Git repository and initial commit
-- [ ] Create basic project structure
-- [ ] Set up ESLint and Prettier
-- [ ] Configure testing framework (Jest + React Testing Library)
+- [x] Initialize Next.js 15 project with TypeScript
+- [x] Set up Tailwind CSS and shadcn/ui
+- [x] Configure environment variables
+- [x] Set up Git repository and initial commit
+- [x] Create basic project structure
+- [x] Set up ESLint
+- [x] Configure Vitest testing framework
 
 **Deliverables**:
-- Working Next.js app with basic routing
-- Database connection established
-- Development environment configured
+
+- ✅ Working Next.js app with basic routing
+- ✅ Development environment configured
+- ✅ 28 unit tests passing
 
 ---
 
 ### Phase 1: Core Infrastructure (Weeks 2-3)
+
 **Goal**: Build foundational features for video upload and storage
 
 #### Week 2: User Authentication & Database
+
 - [ ] Implement user authentication (NextAuth.js)
   - [ ] Email/password signup and login
   - [ ] Session management with JWT
@@ -46,6 +50,7 @@
 - [ ] Implement basic dashboard UI
 
 #### Week 3: File Upload & Storage
+
 - [ ] Integrate Vercel Blob storage
   - [ ] Configure upload API
   - [ ] Handle large file uploads (chunked upload)
@@ -58,6 +63,7 @@
 - [ ] Implement video detail page
 
 **Deliverables**:
+
 - Users can sign up, log in, and upload videos
 - Videos stored in Vercel Blob
 - Basic UI for viewing uploaded videos
@@ -65,9 +71,11 @@
 ---
 
 ### Phase 2: Video Processing Pipeline (Weeks 4-6)
+
 **Goal**: Implement core video processing capabilities
 
 #### Week 4: Transcript Extraction
+
 - [ ] Implement URL parsing and platform detection
   - [ ] Zoom URL parser
   - [ ] YouTube URL parser
@@ -86,6 +94,7 @@
 - [ ] Build transcript viewer UI
 
 #### Week 5: Frame Extraction
+
 - [ ] Set up FFmpeg integration
   - [ ] Install FFmpeg binary or use fluent-ffmpeg
   - [ ] Create FFmpeg wrapper functions
@@ -99,6 +108,7 @@
 - [ ] Implement frame filtering (deduplicate similar frames)
 
 #### Week 6: Job Queue System
+
 - [ ] Set up BullMQ + Redis
   - [ ] Configure Redis connection
   - [ ] Create job queue instances
@@ -112,6 +122,7 @@
 - [ ] Build job monitoring UI
 
 **Deliverables**:
+
 - Videos are automatically processed (transcript + frames)
 - Background job processing with status updates
 - Users can view transcripts and extracted frames
@@ -119,9 +130,11 @@
 ---
 
 ### Phase 3: AI Analysis & Summarization (Weeks 7-8)
+
 **Goal**: Generate intelligent summaries with visual analysis
 
 #### Week 7: AI Integration
+
 - [ ] Set up OpenAI API (GPT-4o mini)
   - [ ] Configure API keys
   - [ ] Create API wrapper functions
@@ -139,6 +152,7 @@
 - [ ] Add cost tracking per video
 
 #### Week 8: Markdown Generation
+
 - [ ] Create Markdown template system
   - [ ] Default template
   - [ ] Custom template support
@@ -154,6 +168,7 @@
 - [ ] Build summary viewer UI (render Markdown)
 
 **Deliverables**:
+
 - AI-powered summaries with key insights
 - Markdown files with embedded screenshots
 - Users can view and download complete summaries
@@ -161,9 +176,11 @@
 ---
 
 ### Phase 4: Polish & MVP Launch (Weeks 9-10)
+
 **Goal**: Refine UX, fix bugs, and prepare for launch
 
 #### Week 9: UI/UX Improvements
+
 - [ ] Enhance dashboard
   - [ ] Video cards with thumbnails
   - [ ] Status indicators
@@ -183,6 +200,7 @@
 - [ ] Accessibility improvements
 
 #### Week 10: Testing & Bug Fixes
+
 - [ ] Write comprehensive tests
   - [ ] Unit tests for utilities
   - [ ] Integration tests for API routes
@@ -201,17 +219,23 @@
 - [ ] Bug fixes and polish
 
 **Deliverables**:
+
 - Production-ready MVP
 - Tested and optimized
 - Ready for initial users
 
 ---
 
-### Phase 5: Enhanced Features (Weeks 11-14)
+### Phase 5: Enhanced Features (Weeks 11-14) 🟡 IN PROGRESS
+
 **Goal**: Add advanced capabilities based on user feedback
 
-#### Features to Implement:
-- [ ] Batch video processing
+#### Features Implemented:
+
+- [x] Batch video processing (queue system with SSE)
+
+#### Features Planned:
+
 - [ ] Custom summary templates
 - [ ] Transcript editing interface
 - [ ] Video sharing (public links)
@@ -225,6 +249,7 @@
 ---
 
 ### Phase 6: Q&A Interface (Weeks 15-16)
+
 **Goal**: Enable natural language queries about meeting content
 
 - [ ] Implement RAG (Retrieval-Augmented Generation)
@@ -242,6 +267,7 @@
 ---
 
 ### Phase 7: Enterprise Features (Weeks 17-20)
+
 **Goal**: Prepare for enterprise customers
 
 - [ ] Team management
@@ -263,6 +289,7 @@
 ### Immediate Next Steps (Week 1)
 
 #### Day 1: Project Initialization
+
 ```bash
 # Tasks for Day 1
 - [ ] Create Next.js project: npx create-next-app@latest videosum
@@ -293,6 +320,7 @@
 ```
 
 #### Day 2: Database Setup
+
 ```bash
 # Tasks for Day 2
 - [ ] Write Prisma schema (User, Video models)
@@ -306,6 +334,7 @@
 ```
 
 #### Day 3: Authentication
+
 ```bash
 # Tasks for Day 3
 - [ ] Configure NextAuth.js
@@ -322,6 +351,7 @@
 ```
 
 #### Day 4: Basic UI Components
+
 ```bash
 # Tasks for Day 4
 - [ ] Install shadcn/ui components:
@@ -337,6 +367,7 @@
 ```
 
 #### Day 5: File Upload Setup
+
 ```bash
 # Tasks for Day 5
 - [ ] Set up Vercel Blob:
@@ -353,24 +384,28 @@
 ## Metrics & Success Criteria
 
 ### Phase 0-1 Success Criteria
+
 - ✅ User can sign up and log in
 - ✅ User can upload a video file
 - ✅ Video is stored and retrievable
 - ✅ Basic UI is functional and responsive
 
 ### Phase 2 Success Criteria
+
 - ✅ Transcript extracted from platform URLs (80%+ success rate)
 - ✅ Frames extracted from videos (1 frame per 15-30 seconds)
 - ✅ Processing completes within 2x video duration
 - ✅ Job queue handles concurrent processing
 
 ### Phase 3 Success Criteria
+
 - ✅ AI summary generated with key points and action items
 - ✅ Visual analysis identifies slides vs speakers (>90% accuracy)
 - ✅ Markdown file downloadable with embedded images
 - ✅ Processing cost < $0.20 per video
 
 ### Phase 4 Success Criteria
+
 - ✅ MVP tested with 10+ beta users
 - ✅ Bug count < 5 critical issues
 - ✅ Page load time < 2 seconds
@@ -381,6 +416,7 @@
 ## Development Best Practices
 
 ### Code Quality
+
 - [ ] Write TypeScript with strict mode
 - [ ] Use ESLint and Prettier
 - [ ] Write tests for critical paths (>70% coverage)
@@ -388,12 +424,14 @@
 - [ ] Document complex functions
 
 ### Git Workflow
+
 - [ ] Work on feature branches
 - [ ] Meaningful commit messages
 - [ ] Squash commits before merge
 - [ ] Tag releases (v0.1.0, v0.2.0, etc.)
 
 ### Performance
+
 - [ ] Use React Server Components where possible
 - [ ] Optimize images (next/image)
 - [ ] Implement caching (Redis)
@@ -401,6 +439,7 @@
 - [ ] Use lazy loading
 
 ### Security
+
 - [ ] Validate all user inputs
 - [ ] Sanitize outputs (prevent XSS)
 - [ ] Use parameterized queries (Prisma)
@@ -411,40 +450,62 @@
 
 ## Milestones
 
-| Milestone | Target Date | Status |
-|-----------|-------------|--------|
-| **M1: Project Setup** | Week 1 | 🔴 Not Started |
-| **M2: Core Infrastructure** | Week 3 | 🔴 Not Started |
-| **M3: Video Processing** | Week 6 | 🔴 Not Started |
-| **M4: AI Summarization** | Week 8 | 🔴 Not Started |
-| **M5: MVP Launch** | Week 10 | 🔴 Not Started |
-| **M6: Enhanced Features** | Week 14 | 🔴 Not Started |
-| **M7: Q&A Interface** | Week 16 | 🔴 Not Started |
-| **M8: Enterprise Ready** | Week 20 | 🔴 Not Started |
+| Milestone                   | Target Date | Status         |
+| --------------------------- | ----------- | -------------- |
+| **M1: Project Setup**       | Week 1      | ✅ Complete    |
+| **M2: Core Infrastructure** | Week 3      | ✅ Complete    |
+| **M3: Video Processing**    | Week 6      | ✅ Complete    |
+| **M4: AI Summarization**    | Week 8      | ✅ Complete    |
+| **M5: Batch Processing**    | Week 10     | ✅ Complete    |
+| **M6: Enhanced Features**   | Week 14     | 🟡 In Progress |
+| **M7: Q&A Interface**       | Week 16     | 🔴 Not Started |
+| **M8: Enterprise Ready**    | Week 20     | 🔴 Not Started |
+
+### Completed Milestones Detail
+
+**M1-M4: Core MVP (January 2026)**
+
+- Next.js 15 project with TypeScript and Tailwind
+- Python video processing pipeline with OpenAI/Anthropic integration
+- Web UI for upload, processing, and viewing notes
+- Chat interface for Q&A about notes
+- Library view for browsing processed notes
+
+**M5: Batch Processing Queue (January 2026)**
+
+- Multi-file upload with drag & drop
+- Queue persistence to disk (`~/.videosum/queue.json`)
+- Sequential background processing
+- Real-time progress via Server-Sent Events (SSE)
+- Collapsible queue panel UI
+- Cancel/remove/retry operations
+- 28 unit tests passing
 
 ---
 
 ## Risk Register
 
-| Risk | Mitigation | Owner |
-|------|------------|-------|
-| FFmpeg installation issues | Use Docker or serverless functions | DevOps |
-| API rate limits (OpenAI) | Implement queuing and batching | Backend |
-| Storage costs too high | Delete videos after 30 days | Product |
-| Slow processing times | Optimize FFmpeg flags, use queue | Backend |
-| Platform API changes | Version adapters, monitor docs | Backend |
+| Risk                       | Mitigation                         | Owner   |
+| -------------------------- | ---------------------------------- | ------- |
+| FFmpeg installation issues | Use Docker or serverless functions | DevOps  |
+| API rate limits (OpenAI)   | Implement queuing and batching     | Backend |
+| Storage costs too high     | Delete videos after 30 days        | Product |
+| Slow processing times      | Optimize FFmpeg flags, use queue   | Backend |
+| Platform API changes       | Version adapters, monitor docs     | Backend |
 
 ---
 
 ## Questions & Decisions
 
 ### Open Questions
+
 - [ ] Which AI model to use for MVP? (GPT-4o mini vs Gemini 1.5 Flash)
 - [ ] Should we support video download from URLs in Phase 1?
 - [ ] What's the max video duration for free tier?
 - [ ] Do we need real-time processing status via WebSockets?
 
 ### Decisions Made
+
 - ✅ Use Vercel Blob for storage (not S3) - easier Next.js integration
 - ✅ PostgreSQL over MongoDB - better for relational data
 - ✅ BullMQ for job queue - Redis-backed, reliable
@@ -455,6 +516,7 @@
 ## Resources
 
 ### Documentation
+
 - [Next.js 15 Docs](https://nextjs.org/docs)
 - [Prisma Docs](https://www.prisma.io/docs)
 - [Vercel Blob Docs](https://vercel.com/docs/storage/vercel-blob)
@@ -463,6 +525,7 @@
 - [FFmpeg Docs](https://ffmpeg.org/documentation.html)
 
 ### Tools & Services
+
 - **Hosting**: Vercel
 - **Database**: Railway PostgreSQL
 - **Storage**: Vercel Blob
