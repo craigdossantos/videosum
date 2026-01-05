@@ -11,8 +11,13 @@ import {
   SendIcon,
   XIcon,
   LoaderIcon,
-  ExternalLinkIcon,
 } from "./Icons";
+import { ChevronDown, ChevronRight, Copy, Check } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -22,11 +27,49 @@ interface ChatMessage {
 interface NotesViewerProps {
   id: string;
   title: string;
-  summaryMarkdown: string; // AI-generated summary (downloadable)
-  transcriptHtml: string; // Full transcript HTML (viewable)
+  summaryMarkdown: string;
+  transcriptHtml: string;
   durationSeconds: number;
   processedAt: string;
   onBack: () => void;
+}
+
+interface MarkdownSection {
+  title: string;
+  content: string;
+}
+
+function parseMarkdownSections(markdown: string): MarkdownSection[] {
+  const lines = markdown.split("\n");
+  const sections: MarkdownSection[] = [];
+  let currentSection: MarkdownSection | null = null;
+  let currentContent: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("## ")) {
+      // Save previous section
+      if (currentSection) {
+        currentSection.content = currentContent.join("\n").trim();
+        sections.push(currentSection);
+        currentContent = [];
+      }
+      // Start new section
+      currentSection = {
+        title: line.substring(3).trim(),
+        content: "",
+      };
+    } else if (currentSection) {
+      currentContent.push(line);
+    }
+  }
+
+  // Save last section
+  if (currentSection) {
+    currentSection.content = currentContent.join("\n").trim();
+    sections.push(currentSection);
+  }
+
+  return sections;
 }
 
 function formatDuration(seconds: number): string {
@@ -49,7 +92,7 @@ function formatDate(dateStr: string): string {
   });
 }
 
-const NotesViewer: React.FC<NotesViewerProps> = ({
+const NotesViewerCollapsible: React.FC<NotesViewerProps> = ({
   id,
   title,
   summaryMarkdown,
@@ -65,6 +108,22 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Parse markdown into sections
+  const sections = parseMarkdownSections(summaryMarkdown);
+
+  // Collapsible state - first section (Overview) starts open
+  const [sectionStates, setSectionStates] = useState<Record<string, boolean>>(
+    () => {
+      const initial: Record<string, boolean> = {};
+      sections.forEach((section, index) => {
+        initial[section.title] = index === 0; // First section open
+      });
+      return initial;
+    },
+  );
+
+  const [copiedSection, setCopiedSection] = useState<string | null>(null);
 
   useEffect(() => {
     if (chatOpen && inputRef.current) {
@@ -120,11 +179,9 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
   };
 
   const handleViewTranscript = () => {
-    // Open transcript HTML in new tab
     const blob = new Blob([transcriptHtml], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");
-    // Note: We don't revoke immediately so the new tab can load
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
@@ -136,6 +193,19 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
     a.download = `${title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-summary.md`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const copyToClipboard = async (text: string, section: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedSection(section);
+    setTimeout(() => setCopiedSection(null), 2000);
+  };
+
+  const toggleSection = (sectionTitle: string) => {
+    setSectionStates((prev) => ({
+      ...prev,
+      [sectionTitle]: !prev[sectionTitle],
+    }));
   };
 
   return (
@@ -180,14 +250,13 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
             <div className="flex gap-2">
               <button
                 onClick={handleViewTranscript}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
-                <ExternalLinkIcon className="w-4 h-4" />
                 View Transcript
               </button>
               <button
                 onClick={handleDownloadSummary}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
               >
                 <DownloadIcon className="w-4 h-4" />
                 Summary
@@ -196,11 +265,47 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
           </div>
         </div>
 
-        {/* Content - AI Summary */}
-        <div className="p-6 md:p-10">
-          <article className="prose prose-gray max-w-none prose-headings:text-gray-900 prose-p:reading-prose-mobile md:prose-p:reading-prose prose-li:reading-prose-mobile md:prose-li:reading-prose prose-strong:text-gray-900">
-            <ReactMarkdown>{summaryMarkdown}</ReactMarkdown>
-          </article>
+        {/* Content - Collapsible Sections */}
+        <div className="p-6 md:p-10 space-y-6">
+          {sections.map((section, index) => (
+            <Collapsible
+              key={section.title}
+              open={sectionStates[section.title]}
+              onOpenChange={() => toggleSection(section.title)}
+            >
+              <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between mb-3">
+                  <CollapsibleTrigger className="flex items-center gap-2 hover:text-[var(--youtube-blue)] transition-colors">
+                    {sectionStates[section.title] ? (
+                      <ChevronDown className="w-4 h-4" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4" />
+                    )}
+                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">
+                      {section.title}
+                    </h3>
+                  </CollapsibleTrigger>
+                  <button
+                    onClick={() =>
+                      copyToClipboard(section.content, section.title)
+                    }
+                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    {copiedSection === section.title ? (
+                      <Check className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <Copy className="w-4 h-4 text-gray-500" />
+                    )}
+                  </button>
+                </div>
+                <CollapsibleContent>
+                  <article className="prose prose-gray max-w-none prose-headings:text-gray-900 prose-p:reading-prose-mobile md:prose-p:reading-prose prose-li:reading-prose-mobile md:prose-li:reading-prose prose-strong:text-gray-900">
+                    <ReactMarkdown>{section.content}</ReactMarkdown>
+                  </article>
+                </CollapsibleContent>
+              </section>
+            </Collapsible>
+          ))}
         </div>
       </div>
 
@@ -299,4 +404,4 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
   );
 };
 
-export default NotesViewer;
+export default NotesViewerCollapsible;
