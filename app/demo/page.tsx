@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from "react";
 import UploadCard from "@/components/mvp/UploadCard";
-import NotesViewer from "@/components/mvp/NotesViewer";
+import NotesViewer from "@/components/mvp/NotesViewerCollapsible";
 import LibraryView from "@/components/mvp/LibraryView";
 import { QueuePanel } from "@/components/mvp/QueuePanel";
 import { useQueueEvents } from "@/hooks/useQueueEvents";

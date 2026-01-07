@@ -588,21 +588,24 @@ def process_video(video_path: str, output_base: str) -> dict:
     return {
         'status': 'success',
         'folder': str(output_folder),
-        'folder_name': output_folder.name,
+        'folder_id': output_folder.name,
         'title': title,
         'cost': total_cost
     }
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print("Usage: python3 process_video.py <video_path> <output_dir>", file=sys.stderr)
-        print("\nExample:", file=sys.stderr)
-        print("  python3 process_video.py ~/Videos/class.mp4 ~/ClassNotes", file=sys.stderr)
-        sys.exit(1)
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Process a video file and generate class notes.')
+    parser.add_argument('video_path', help='Path to the video file')
+    parser.add_argument('output_dir', help='Directory to store output files')
+    parser.add_argument('--folder', help='Optional folder name (not used currently)', default=None)
+
+    args = parser.parse_args()
 
     try:
-        result = process_video(sys.argv[1], sys.argv[2])
+        result = process_video(args.video_path, args.output_dir)
         print(json.dumps(result))
     except Exception as e:
         print(json.dumps({'status': 'error', 'message': str(e)}))

@@ -29,6 +29,13 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+    /* YouTube brand colors */
+    --youtube-red: #ff0000;
+    --youtube-red-hover: #cc0000;
+    --youtube-blue: #065fd4;
+    --youtube-gray: #606060;
+    --youtube-light-gray: #aaaaaa;
+    --youtube-bg-hover: rgba(0, 0, 0, 0.05);
   }
 
   .dark {
@@ -56,6 +63,13 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+    /* YouTube brand colors dark */
+    --youtube-red: #ff0000;
+    --youtube-red-hover: #ff4444;
+    --youtube-blue: #3ea6ff;
+    --youtube-gray: #aaaaaa;
+    --youtube-light-gray: #717171;
+    --youtube-bg-hover: rgba(255, 255, 255, 0.1);
   }
 }
 
@@ -65,5 +79,32 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  /* Serif reading typography */
+  .reading-prose {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 20px;
+    line-height: 1.55;
+    letter-spacing: 0.25px;
+    font-weight: 400;
+  }
+
+  .reading-prose-mobile {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 18px;
+    line-height: 1.55;
+    letter-spacing: 0.25px;
+    font-weight: 400;
+  }
+
+  .youtube-blue {
+    color: var(--youtube-blue);
+  }
+
+  .timestamp-link {
+    @apply text-[var(--youtube-blue)] hover:underline cursor-pointer font-medium;
   }
 }
