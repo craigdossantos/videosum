@@ -1,16 +1,44 @@
-# VideoSum - Current Status (January 5, 2026)
+# VideoSum - Current Status (January 6, 2026)
 
 ## 🎯 Where We Are Now
 
-**Phase**: 4 of 10 (MVP Polish & Launch)  
-**Progress**: 77% complete (7/9 Phase 4 items done)  
-**Latest Commit**: Typography & UI improvements + processing bug fixes
+**Phase**: 4 of 10 (MVP Polish & Launch)
+**Progress**: 82% complete (7.5/9 Phase 4 items done)
+**Latest Commit**: Queue visibility fixes + video reprocess feature
 
 ---
 
-## ✅ What Just Got Completed (Jan 5, 2026)
+## ✅ What Just Got Completed (Jan 6, 2026)
+
+### Queue & Processing Improvements
+
+- ✅ **Queue Panel Auto-Show**: Queue panel now appears immediately after video upload
+- ✅ **Video Reprocess**: Regenerate summaries without re-transcribing (saves time & cost)
+- ✅ **Progress Display**: Enhanced progress messages during video processing
+- ✅ **Cancel Button Fix**: Resolved 404 errors when removing queue items
+- ✅ **Auto-Continue**: Queue automatically processes next item after failures
+
+### Technical Fixes
+
+- ✅ **Next.js 15 Compatibility**: Fixed async params handling in reprocess endpoint
+- ✅ **Python Function Error**: Corrected `summarize` → `generate_notes` call
+- ✅ **Metadata Updates**: Reprocessed videos now update title and costs correctly
+- ✅ **SSE State Sync**: Immediate queue state refresh after uploads
+
+### Components Updated
+
+- `hooks/useQueueEvents.ts`: Added immediate state refresh after upload
+- `components/mvp/QueuePanel.tsx`: Enhanced auto-expansion logic
+- `app/api/class-notes/[id]/reprocess/route.ts`: New reprocess endpoint
+- `scripts/process_video.py`: Added `reprocess_notes()` function
+- `lib/queue-processor.ts`: Handle reprocess items differently
+
+---
+
+## ✅ Previously Completed (Jan 5, 2026)
 
 ### UI/UX Improvements
+
 - ✅ **Typography System**: Georgia serif font for readability (NYT-inspired)
 - ✅ **Color Palette**: YouTube-authentic colors for professional look
 - ✅ **Collapsible Sections**: Auto-parsed markdown with expand/collapse
@@ -18,11 +46,13 @@
 - ✅ **Mobile Typography**: Responsive font sizing (18px mobile, 20px desktop)
 
 ### Bug Fixes
+
 - ✅ **Processing Error**: Fixed `folder_id` vs `folder_name` mismatch
 - ✅ **CLI Arguments**: Added argparse for `--folder` parameter
 - ✅ **Verified**: Test video processed successfully end-to-end
 
 ### Components Added
+
 - `NotesViewerCollapsible.tsx`: Enhanced notes viewer with collapsible sections
 - `ExportButton.tsx`: Export dropdown with copy/download options
 - `collapsible.tsx`: Radix UI wrapper for collapsible components
@@ -33,6 +63,7 @@
 ## 🚀 What's Working Right Now
 
 ### Full Feature List
+
 1. **Video Upload**: Drag & drop, multi-file selection
 2. **Processing Queue**: Background processing with progress tracking
 3. **Transcription**: OpenAI Whisper integration
@@ -44,8 +75,10 @@
 9. **Transcript Viewer**: HTML transcript with timestamps
 10. **Library**: Browse all processed videos
 11. **Queue Management**: Cancel, retry, remove items
+12. **Video Reprocess**: Regenerate summaries without re-transcribing (NEW!)
 
 ### Technical Stack (Verified Working)
+
 - **Frontend**: Next.js 15, React, TypeScript, Tailwind CSS
 - **UI Components**: shadcn/ui, Radix UI
 - **Backend**: Next.js API routes, Server-Sent Events
@@ -60,6 +93,7 @@
 **Inspiration**: YouTube Summarizer project (readability-first approach)
 
 **Design Principles**:
+
 1. **Typography First**: Georgia serif for body text (proven readability)
 2. **Progressive Disclosure**: Collapsible sections (first section open)
 3. **Copy-Friendly**: Easy sharing with individual section copy buttons
@@ -67,6 +101,7 @@
 5. **Mobile Responsive**: Typography scales appropriately
 
 **User Flow**:
+
 ```
 Upload → Queue → Process → View Notes (collapsible) → Export/Chat
 ```
@@ -76,6 +111,7 @@ Upload → Queue → Process → View Notes (collapsible) → Export/Chat
 ## 📊 Files You Should Know About
 
 ### Core Application Files
+
 - `app/demo/page.tsx`: Main demo page (uses NotesViewerCollapsible)
 - `app/test-summary/page.tsx`: Test page showcasing SummaryView features
 - `scripts/process_video.py`: Python video processing script
@@ -83,15 +119,18 @@ Upload → Queue → Process → View Notes (collapsible) → Export/Chat
 - `lib/export.ts`: Markdown export utilities
 
 ### UI Components
+
 - `components/mvp/NotesViewerCollapsible.tsx`: Enhanced notes viewer
 - `components/mvp/SummaryView.tsx`: Summary view with collapsible sections
 - `components/export/ExportButton.tsx`: Export functionality
 - `components/ui/collapsible.tsx`: Radix UI wrapper
 
 ### Styling
+
 - `app/globals.css`: YouTube colors + typography classes
 
 ### Documentation
+
 - `CHANGELOG.md`: Version history (NEW!)
 - `PROJECT_SUMMARY.md`: Comprehensive project overview
 - `ROADMAP.md`: Development phases and milestones
@@ -103,10 +142,12 @@ Upload → Queue → Process → View Notes (collapsible) → Export/Chat
 ## 🔧 How to Continue Development
 
 ### Next Immediate Tasks (Phase 4 Completion)
+
 1. **E2E Tests**: Set up Playwright tests for critical user flows
 2. **Mobile Layout**: Full responsive design (beyond typography)
 
 ### Quick Start for New Developers
+
 ```bash
 # 1. Install dependencies
 npm install
@@ -128,6 +169,7 @@ npm run dev
 ```
 
 ### Testing
+
 ```bash
 # Run unit tests
 npm test
@@ -140,6 +182,7 @@ npm run test:coverage
 ```
 
 ### Video Processing
+
 ```bash
 # Process a single video manually
 .venv/bin/python3 scripts/process_video.py path/to/video.mp4 ~/Dropbox/ClassNotes
@@ -156,13 +199,24 @@ npm run test:coverage
 ## 🐛 Known Issues & Limitations
 
 ### Current Limitations
+
 - **No database**: Using file-based storage (good for MVP)
 - **Local processing only**: No cloud deployment yet
 - **Queue persistence**: File-based (not production-ready)
 - **No authentication**: Single user assumed
 - **No URL input**: Only local file uploads
 
-### Fixed Issues (Jan 5, 2026)
+### Fixed Issues
+
+**Jan 6, 2026:**
+
+- ✅ Queue panel not appearing after upload
+- ✅ Cancel button returning 404 errors
+- ✅ Reprocess function calling non-existent `summarize()`
+- ✅ Next.js 15 async params compatibility
+
+**Jan 5, 2026:**
+
 - ✅ Processing errors: `folder_id` mismatch fixed
 - ✅ CLI argument handling: argparse added
 - ✅ Typography: Reading experience improved
@@ -173,6 +227,7 @@ npm run test:coverage
 ## 📈 Progress Metrics
 
 ### Phase Completion
+
 - Phase 0 (Setup): ✅ 100% (5/5)
 - Phase 1 (Infrastructure): ✅ 100% (4/4)
 - Phase 2 (Video Processing): ✅ 100% (4/4)
@@ -180,12 +235,14 @@ npm run test:coverage
 - Phase 4 (Polish & Launch): 🟡 78% (7/9)
 
 ### Code Quality
+
 - Unit Tests: 28 passing
 - TypeScript: Strict mode enabled
 - Linting: ESLint configured
 - Code Coverage: Not yet measured
 
 ### Performance
+
 - Test video (5 sec): ~15 sec processing time
 - Full class (90 min): ~2-3 min processing time
 - Cost per video: $0.12 average (blended)
@@ -195,12 +252,14 @@ npm run test:coverage
 ## 💡 Tips for Future Developers
 
 ### Understanding the Codebase
+
 1. **Start here**: Read `CLAUDE.md` for development philosophy
 2. **Architecture**: Review `PROJECT_SUMMARY.md` sections
 3. **Tasks**: Check `TODO.md` for next actionable items
 4. **Changes**: Read `CHANGELOG.md` for version history
 
 ### Making Changes
+
 1. **Create feature branch**: `git checkout -b feature/your-feature`
 2. **Follow TODO.md**: Tasks are sequenced and detailed
 3. **Write tests**: Add to `__tests__/` directory
@@ -208,6 +267,7 @@ npm run test:coverage
 5. **Commit properly**: Use conventional commit format
 
 ### Testing Changes
+
 1. **Unit tests**: `npm test`
 2. **Manual testing**: Upload test video via `/demo`
 3. **Check queue**: Verify background processing
@@ -215,6 +275,7 @@ npm run test:coverage
 5. **Typography**: Check reading experience
 
 ### Common Pitfalls
+
 - ❌ Don't work directly on `main` branch
 - ❌ Don't skip writing tests
 - ❌ Don't forget to update documentation
@@ -226,12 +287,14 @@ npm run test:coverage
 ## 🎓 Learning Resources
 
 ### Project-Specific
+
 - Typography system: See `app/globals.css` (lines 20-40)
 - Collapsible sections: See `NotesViewerCollapsible.tsx` (lines 60-100)
 - Queue system: See `lib/queue-processor.ts`
 - Export logic: See `lib/export.ts`
 
 ### External Documentation
+
 - **Radix UI Collapsible**: https://www.radix-ui.com/primitives/docs/components/collapsible
 - **Next.js 15**: https://nextjs.org/docs
 - **OpenAI Whisper**: https://platform.openai.com/docs/guides/speech-to-text
@@ -242,12 +305,14 @@ npm run test:coverage
 ## 📞 Getting Help
 
 ### Internal Resources
+
 1. Check `CLAUDE.md` for development guidelines
 2. Review `TODO.md` for task breakdowns
 3. Search `CHANGELOG.md` for similar changes
 4. Read component comments in TypeScript files
 
 ### External Resources
+
 1. Next.js Discord: https://discord.gg/nextjs
 2. Stack Overflow: Tag questions with `next.js`, `typescript`
 3. GitHub Issues: Check for similar problems
@@ -257,12 +322,14 @@ npm run test:coverage
 ## ✨ Recent Highlights
 
 ### What Users Will Notice
+
 - **Better Readability**: Georgia serif font feels more natural
 - **Cleaner Interface**: Collapsible sections reduce cognitive load
 - **Easy Sharing**: Copy individual sections or full summary
 - **Professional Look**: YouTube colors feel familiar and polished
 
 ### What Developers Will Notice
+
 - **Modular Components**: Clean separation of concerns
 - **Type Safety**: Full TypeScript coverage
 - **Tested Code**: 28 unit tests ensure stability
@@ -273,24 +340,27 @@ npm run test:coverage
 ## 🎯 Next Steps (Prioritized)
 
 ### This Week
+
 1. Set up Playwright for E2E testing
 2. Test critical user flows (upload → process → view → export)
 3. Add mobile layout improvements
 
 ### Next Week
+
 1. Complete Phase 4 (final 2 items)
 2. Begin Phase 5 planning (deployment)
 3. Performance optimization
 
 ### This Month
+
 1. Deploy to Vercel/production
 2. Add URL-based input (Zoom, YouTube)
 3. Implement user authentication
 
 ---
 
-**Last Updated**: January 5, 2026  
-**Next Review**: January 12, 2026  
+**Last Updated**: January 6, 2026
+**Next Review**: January 12, 2026
 **Maintainer**: Craig Dos Santos
 
 **Questions?** Check the documentation or reach out!
