@@ -115,6 +115,18 @@ export function useQueueEvents() {
           return false;
         }
 
+        // Immediately refresh queue state to ensure UI updates
+        // even if SSE connection is temporarily down
+        try {
+          const queueResponse = await fetch("/api/queue");
+          if (queueResponse.ok) {
+            const state = await queueResponse.json();
+            setQueueState(state);
+          }
+        } catch {
+          console.error("Failed to refresh queue after upload");
+        }
+
         return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to add to queue");
@@ -127,6 +139,8 @@ export function useQueueEvents() {
   const removeItem = useCallback(async (id: string): Promise<boolean> => {
     try {
       const response = await fetch(`/api/queue/${id}`, { method: "DELETE" });
+      // Treat 404 as success - item already removed
+      if (response.status === 404) return true;
       return response.ok;
     } catch {
       return false;

@@ -556,20 +556,25 @@ def reprocess_notes(folder_path: str) -> dict:
     emit_progress('loading', 'Loading existing transcript...')
     transcript = transcript_path.read_text(encoding='utf-8')
 
-    # Load metadata for title
+    # Load metadata for duration
     metadata_path = folder / 'metadata.json'
     metadata = json.loads(metadata_path.read_text(encoding='utf-8')) if metadata_path.exists() else {}
-    title = metadata.get('title', folder.name)
+    duration_seconds = metadata.get('duration_seconds', 0)
 
     # Regenerate summary
     emit_progress('summarizing', 'Regenerating summary with updated prompts...')
-    notes, summary_cost = summarize(transcript, title)
+    notes, summary_cost = generate_notes(transcript, duration_seconds)
 
     # Save new summary
     notes_path = folder / 'notes.md'
     notes_path.write_text(notes, encoding='utf-8')
 
+    # Extract title from notes (first H1)
+    title_match = re.search(r'^# (.+)$', notes, re.MULTILINE)
+    title = title_match.group(1) if title_match else folder.name
+
     # Update metadata
+    metadata['title'] = title
     metadata['reprocessed_at'] = datetime.now().isoformat()
     metadata['summary_cost'] = summary_cost
     if 'cost' in metadata:

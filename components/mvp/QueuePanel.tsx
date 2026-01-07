@@ -335,6 +335,7 @@ export function QueuePanel({
     }
   }, [queueState?.items.length, queueState?.items]);
 
+  // Don't render panel if no items
   if (!queueState || queueState.items.length === 0) {
     return null;
   }

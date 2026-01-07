@@ -6,10 +6,10 @@ import fs from "fs/promises";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Load existing metadata to verify the folder exists
     const notesBaseDir =
@@ -43,7 +43,7 @@ export async function POST(
 
     // Trigger processor to start if not already running
     const processor = getQueueProcessor();
-    processor.processNext();
+    await processor.start();
 
     return NextResponse.json({
       success: true,
