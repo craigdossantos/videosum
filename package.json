@@ -2,6 +2,7 @@
   "name": "videosum",
   "version": "0.1.0",
   "private": true,
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,7 +10,11 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "electron:dev": "npm run dev & sleep 3 && electron .",
+    "electron:build": "tsc -p electron/tsconfig.json && electron-forge make",
+    "electron:compile": "tsc -p electron/tsconfig.json",
+    "electron:start": "npm run electron:compile && electron ."
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
@@ -45,6 +50,9 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@electron-forge/cli": "^7.10.2",
+    "@electron-forge/maker-dmg": "^7.10.2",
+    "@electron-forge/maker-zip": "^7.10.2",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.1",
     "@types/node": "^24.9.1",
@@ -52,6 +60,7 @@
     "@types/react-dom": "^19.2.2",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.22",
+    "electron": "^39.2.7",
     "eslint": "^9.38.0",
     "eslint-config-next": "^16.0.0",
     "jsdom": "^27.0.1",

@@ -179,7 +179,8 @@ def generate_notes(transcript: str, duration_seconds: int) -> tuple[str, float]:
         max_tokens=8192,
         messages=[{
             'role': 'user',
-            'content': f"""You are analyzing a class recording transcript. Generate comprehensive, well-organized notes.
+            'content': f"""You are writing class notes in the first-person voice of the instructor from this recording.
+Write as if you ARE the instructor summarizing what you taught.
 
 TRANSCRIPT ({duration_str}):
 {transcript}
@@ -189,26 +190,72 @@ Create detailed notes with these sections:
 # [Infer an appropriate title from the content]
 
 ## Overview
-Brief summary of what this class covered and key takeaways.
+Brief summary of what I covered in this class and key takeaways.
 
 ## Core Concepts
-Each major concept explained clearly. Use ### for each concept.
+Each major concept I explained. Use ### for each concept.
+Write in first person: "I explained...", "What I mean by this is...", "The key point I want you to understand..."
 
 ## Stories & Examples
-Any illustrative stories, examples, or case studies mentioned.
-For each, include the story and the lesson/point it illustrates.
+Stories and examples I shared to illustrate points.
+For each, include the story and the lesson I was conveying.
 
 ## Exercises & Practices
-Step-by-step instructions for any exercises, practices, or techniques taught.
+Step-by-step instructions for exercises I guided students through.
 Include purpose, duration if mentioned, and clear instructions.
 
 ## Key Insights
-Bullet points of the most important takeaways.
+The most important takeaways from my teaching.
 
 ---
 
-Be detailed and capture the essence of the class. Do NOT include timestamps or speaker labels.
-Format as clean Markdown."""
+Be detailed and capture the essence of my teaching. Do NOT include timestamps or speaker labels.
+Write in first person throughout. Format as clean Markdown."""
+        }]
+    )
+
+    # Cost calculation (Claude Sonnet pricing)
+    input_cost = (response.usage.input_tokens / 1_000_000) * 3.00
+    output_cost = (response.usage.output_tokens / 1_000_000) * 15.00
+    cost = input_cost + output_cost
+
+    return response.content[0].text, cost
+
+
+def generate_blog_post(transcript: str, duration_seconds: int) -> tuple[str, float]:
+    """Generate a narrative blog post in instructor's voice. Returns (markdown_blog, cost)."""
+    client = Anthropic()
+
+    hours = int(duration_seconds // 3600)
+    minutes = int((duration_seconds % 3600) // 60)
+    duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+
+    response = client.messages.create(
+        model='claude-sonnet-4-20250514',
+        max_tokens=8192,
+        messages=[{
+            'role': 'user',
+            'content': f"""You are writing a blog post in the first-person voice of the instructor
+from this class recording. Write as if you ARE the instructor sharing insights from your teaching.
+
+TRANSCRIPT ({duration_str}):
+{transcript}
+
+Write a compelling, narrative blog post that:
+- Uses first-person voice throughout ("I", "my students", "when I teach this...")
+- Flows naturally like a written article, not bullet points or lists
+- Weaves in stories and examples from the class naturally
+- Does NOT include step-by-step exercise instructions (those belong in class notes)
+- Is approximately 1500-3000 words
+- Has an engaging introduction that draws the reader in
+- Has a thoughtful conclusion with key takeaways
+- Uses ## headers to organize major sections
+- Feels like something the instructor would publish on their blog
+
+The tone should be warm, knowledgeable, and conversational - like the instructor is sharing
+their wisdom directly with the reader. Include personal insights and reflections where appropriate.
+
+Format as clean Markdown suitable for publishing on a blog."""
         }]
     )
 
@@ -506,6 +553,11 @@ def process_video(video_path: str, output_base: str) -> dict:
     title_match = re.search(r'^# (.+)$', notes_md, re.MULTILINE)
     title = title_match.group(1) if title_match else video_path.stem
 
+    # Generate blog post
+    emit_progress('summarizing', 'Generating blog post with Claude...')
+    blog_md, blog_cost = generate_blog_post(transcript, int(duration))
+    (output_folder / 'blog.md').write_text(blog_md)
+
     # Generate HTML transcript (viewable in browser)
     emit_progress('finalizing', 'Generating HTML transcript...')
     html = transcript_to_html(transcript, title, int(duration))
@@ -515,7 +567,7 @@ def process_video(video_path: str, output_base: str) -> dict:
     audio_path.unlink()
 
     # Save metadata
-    total_cost = transcription_cost + summarization_cost
+    total_cost = transcription_cost + summarization_cost + blog_cost
     metadata = {
         'title': title,
         'source_file': video_path.name,
@@ -525,6 +577,7 @@ def process_video(video_path: str, output_base: str) -> dict:
         'costs': {
             'transcription': round(transcription_cost, 4),
             'summarization': round(summarization_cost, 4),
+            'blog': round(blog_cost, 4),
             'total': round(total_cost, 4)
         }
     }

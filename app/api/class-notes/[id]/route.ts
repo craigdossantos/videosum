@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { readFile, access } from 'fs/promises';
-import { join } from 'path';
-import { homedir } from 'os';
+import { NextRequest, NextResponse } from "next/server";
+import { readFile, access } from "fs/promises";
+import { join } from "path";
+import { homedir } from "os";
 
 function getOutputDir(): string {
-  const configDir = process.env.CLASS_NOTES_DIR || '~/ClassNotes';
+  const configDir = process.env.CLASS_NOTES_DIR || "~/ClassNotes";
   return configDir.replace(/^~/, homedir());
 }
 
@@ -23,21 +23,33 @@ interface ClassMetadata {
 
 interface ClassNotes extends ClassMetadata {
   id: string;
-  markdown: string;  // AI-generated summary (for download)
-  transcriptHtml: string;  // Full transcript HTML (for viewing)
+  markdown: string; // AI-generated summary (for download)
+  transcriptHtml: string; // Full transcript HTML (for viewing)
+  blogMarkdown?: string; // AI-generated blog post
 }
 
-async function readFileOrFallback(primary: string, fallback: string): Promise<string> {
+async function readFileOrFallback(
+  primary: string,
+  fallback: string,
+): Promise<string> {
   try {
-    return await readFile(primary, 'utf-8');
+    return await readFile(primary, "utf-8");
   } catch {
-    return await readFile(fallback, 'utf-8');
+    return await readFile(fallback, "utf-8");
+  }
+}
+
+async function readOptionalFile(filePath: string): Promise<string | undefined> {
+  try {
+    return await readFile(filePath, "utf-8");
+  } catch {
+    return undefined;
   }
 }
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -48,19 +60,22 @@ export async function GET(
     try {
       await access(classDir);
     } catch {
-      return NextResponse.json({ error: 'Class not found' }, { status: 404 });
+      return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
     // Read all files in parallel
     // transcript.html is new format, notes.html is old format (fallback)
-    const [metadataContent, markdown, transcriptHtml] = await Promise.all([
-      readFile(join(classDir, 'metadata.json'), 'utf-8'),
-      readFile(join(classDir, 'notes.md'), 'utf-8'),
-      readFileOrFallback(
-        join(classDir, 'transcript.html'),
-        join(classDir, 'notes.html')
-      ),
-    ]);
+    // blog.md is optional (only exists for newly processed videos)
+    const [metadataContent, markdown, transcriptHtml, blogMarkdown] =
+      await Promise.all([
+        readFile(join(classDir, "metadata.json"), "utf-8"),
+        readFile(join(classDir, "notes.md"), "utf-8"),
+        readFileOrFallback(
+          join(classDir, "transcript.html"),
+          join(classDir, "notes.html"),
+        ),
+        readOptionalFile(join(classDir, "blog.md")),
+      ]);
 
     const metadata: ClassMetadata = JSON.parse(metadataContent);
 
@@ -69,14 +84,15 @@ export async function GET(
       ...metadata,
       markdown,
       transcriptHtml,
+      blogMarkdown,
     };
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Notes error:', error);
+    console.error("Notes error:", error);
     return NextResponse.json(
-      { error: 'Failed to load class notes' },
-      { status: 500 }
+      { error: "Failed to load class notes" },
+      { status: 500 },
     );
   }
 }

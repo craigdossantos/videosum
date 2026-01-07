@@ -1,23 +1,36 @@
-'use client';
+"use client";
 
-import React, { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { ArrowLeftIcon, DownloadIcon, ClockIcon, CalendarIcon, ChatIcon, SendIcon, XIcon, LoaderIcon, ExternalLinkIcon } from './Icons';
+import React, { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import {
+  ArrowLeftIcon,
+  DownloadIcon,
+  ClockIcon,
+  CalendarIcon,
+  ChatIcon,
+  SendIcon,
+  XIcon,
+  LoaderIcon,
+  ExternalLinkIcon,
+} from "./Icons";
 
 interface ChatMessage {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
 }
 
 interface NotesViewerProps {
   id: string;
   title: string;
-  summaryMarkdown: string;  // AI-generated summary (downloadable)
-  transcriptHtml: string;   // Full transcript HTML (viewable)
+  summaryMarkdown: string; // AI-generated summary (downloadable)
+  transcriptHtml: string; // Full transcript HTML (viewable)
+  blogMarkdown?: string; // AI-generated blog post (optional)
   durationSeconds: number;
   processedAt: string;
   onBack: () => void;
 }
+
+type TabType = "notes" | "blog";
 
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
@@ -25,17 +38,17 @@ function formatDuration(seconds: number): string {
   const secs = seconds % 60;
 
   if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  return `${minutes}:${secs.toString().padStart(2, "0")}`;
 }
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 
@@ -44,13 +57,15 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
   title,
   summaryMarkdown,
   transcriptHtml,
+  blogMarkdown,
   durationSeconds,
   processedAt,
   onBack,
 }) => {
+  const [activeTab, setActiveTab] = useState<TabType>("notes");
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -63,22 +78,22 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
   }, [chatOpen]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
     const userMessage = input.trim();
-    setInput('');
+    setInput("");
     setError(null);
-    setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setIsLoading(true);
 
     try {
       const response = await fetch(`/api/class-notes/${id}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMessage,
           history: messages,
@@ -88,19 +103,22 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Chat request failed');
+        throw new Error(data.error || "Chat request failed");
       }
 
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.message }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.message },
+      ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send message');
+      setError(err instanceof Error ? err.message : "Failed to send message");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -108,19 +126,19 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
 
   const handleViewTranscript = () => {
     // Open transcript HTML in new tab
-    const blob = new Blob([transcriptHtml], { type: 'text/html' });
+    const blob = new Blob([transcriptHtml], { type: "text/html" });
     const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
+    window.open(url, "_blank");
     // Note: We don't revoke immediately so the new tab can load
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const handleDownloadSummary = () => {
-    const blob = new Blob([summaryMarkdown], { type: 'text/markdown' });
+    const blob = new Blob([summaryMarkdown], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `${title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-summary.md`;
+    a.download = `${title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-summary.md`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -138,13 +156,17 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
             >
               <ArrowLeftIcon className="w-5 h-5 text-gray-600" />
             </button>
-            <h1 className="text-xl font-semibold text-gray-900 flex-1">{title}</h1>
+            <h1 className="text-xl font-semibold text-gray-900 flex-1">
+              {title}
+            </h1>
             <button
               onClick={() => setChatOpen(!chatOpen)}
               className={`p-2 rounded-lg transition-colors ${
-                chatOpen ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-600'
+                chatOpen
+                  ? "bg-blue-100 text-blue-600"
+                  : "hover:bg-gray-100 text-gray-600"
               }`}
-              aria-label={chatOpen ? 'Close chat' : 'Open chat'}
+              aria-label={chatOpen ? "Close chat" : "Open chat"}
             >
               <ChatIcon className="w-5 h-5" />
             </button>
@@ -177,12 +199,42 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Tabs */}
+          {blogMarkdown && (
+            <div className="flex gap-1 mt-4 border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab("notes")}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === "notes"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Class Notes
+              </button>
+              <button
+                onClick={() => setActiveTab("blog")}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === "blog"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Blog Post
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Content - AI Summary */}
+        {/* Content */}
         <div className="p-6">
           <article className="prose prose-gray max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-li:text-gray-700 prose-strong:text-gray-900">
-            <ReactMarkdown>{summaryMarkdown}</ReactMarkdown>
+            <ReactMarkdown>
+              {activeTab === "blog" && blogMarkdown
+                ? blogMarkdown
+                : summaryMarkdown}
+            </ReactMarkdown>
           </article>
         </div>
       </div>
@@ -193,7 +245,9 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
           {/* Chat Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <div>
-              <h2 className="font-semibold text-gray-900">Ask about this class</h2>
+              <h2 className="font-semibold text-gray-900">
+                Ask about this class
+              </h2>
               <p className="text-sm text-gray-500">Chat with the transcript</p>
             </div>
             <button
@@ -210,23 +264,29 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
             {messages.length === 0 && (
               <div className="text-center text-gray-500 py-8">
                 <ChatIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">Ask questions about the class content.</p>
-                <p className="text-sm mt-1">Try: &quot;What were the main topics?&quot;</p>
+                <p className="text-sm">
+                  Ask questions about the class content.
+                </p>
+                <p className="text-sm mt-1">
+                  Try: &quot;What were the main topics?&quot;
+                </p>
               </div>
             )}
             {messages.map((msg, i) => (
               <div
                 key={i}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
                   className={`max-w-[85%] rounded-lg px-4 py-2 ${
-                    msg.role === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-900'
+                    msg.role === "user"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-900"
                   }`}
                 >
-                  <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
+                  <div className="text-sm whitespace-pre-wrap">
+                    {msg.content}
+                  </div>
                 </div>
               </div>
             ))}

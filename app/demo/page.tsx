@@ -15,6 +15,7 @@ interface NotesData {
   title: string;
   markdown: string;
   transcriptHtml: string;
+  blogMarkdown?: string;
   duration_seconds: number;
   processed_at: string;
 }
@@ -169,6 +170,7 @@ export default function DemoPage() {
             title={currentNotes.title}
             summaryMarkdown={currentNotes.markdown}
             transcriptHtml={currentNotes.transcriptHtml}
+            blogMarkdown={currentNotes.blogMarkdown}
             durationSeconds={currentNotes.duration_seconds}
             processedAt={currentNotes.processed_at}
             onBack={handleBackToIdle}
