@@ -1,12 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { readFile, access } from 'fs/promises';
-import { join } from 'path';
-import { homedir } from 'os';
-
-function getOutputDir(): string {
-  const configDir = process.env.CLASS_NOTES_DIR || '~/ClassNotes';
-  return configDir.replace(/^~/, homedir());
-}
+import { NextRequest, NextResponse } from "next/server";
+import { readFile, access } from "fs/promises";
+import { join } from "path";
+import { getNotesDirectory } from "@/lib/settings";
 
 interface ClassMetadata {
   title: string;
@@ -23,44 +18,54 @@ interface ClassMetadata {
 
 interface ClassNotes extends ClassMetadata {
   id: string;
-  markdown: string;  // AI-generated summary (for download)
-  transcriptHtml: string;  // Full transcript HTML (for viewing)
+  markdown: string; // AI-generated summary (for download)
+  transcriptHtml: string; // Full transcript HTML (for viewing)
+  blogMarkdown?: string; // Blog post markdown (optional, may not exist for older entries)
 }
 
-async function readFileOrFallback(primary: string, fallback: string): Promise<string> {
+async function readFileOrFallback(
+  primary: string,
+  fallback: string,
+): Promise<string> {
   try {
-    return await readFile(primary, 'utf-8');
+    return await readFile(primary, "utf-8");
   } catch {
-    return await readFile(fallback, 'utf-8');
+    return await readFile(fallback, "utf-8");
   }
 }
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const outputDir = getOutputDir();
-    const classDir = join(outputDir, id);
+    // ID can be a path like "School/Math 101/2025-12-30 - Lecture"
+    // Decode URL-encoded characters
+    const decodedId = decodeURIComponent(id);
+    const outputDir = await getNotesDirectory();
+    const classDir = join(outputDir, decodedId);
 
     // Check if directory exists
     try {
       await access(classDir);
     } catch {
-      return NextResponse.json({ error: 'Class not found' }, { status: 404 });
+      return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
     // Read all files in parallel
     // transcript.html is new format, notes.html is old format (fallback)
-    const [metadataContent, markdown, transcriptHtml] = await Promise.all([
-      readFile(join(classDir, 'metadata.json'), 'utf-8'),
-      readFile(join(classDir, 'notes.md'), 'utf-8'),
-      readFileOrFallback(
-        join(classDir, 'transcript.html'),
-        join(classDir, 'notes.html')
-      ),
-    ]);
+    // blog.md is optional (may not exist for older entries)
+    const [metadataContent, markdown, transcriptHtml, blogMarkdown] =
+      await Promise.all([
+        readFile(join(classDir, "metadata.json"), "utf-8"),
+        readFile(join(classDir, "notes.md"), "utf-8"),
+        readFileOrFallback(
+          join(classDir, "transcript.html"),
+          join(classDir, "notes.html"),
+        ),
+        readFile(join(classDir, "blog.md"), "utf-8").catch(() => null),
+      ]);
 
     const metadata: ClassMetadata = JSON.parse(metadataContent);
 
@@ -69,14 +74,15 @@ export async function GET(
       ...metadata,
       markdown,
       transcriptHtml,
+      ...(blogMarkdown && { blogMarkdown }),
     };
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Notes error:', error);
+    console.error("Notes error:", error);
     return NextResponse.json(
-      { error: 'Failed to load class notes' },
-      { status: 500 }
+      { error: "Failed to load class notes" },
+      { status: 500 },
     );
   }
 }

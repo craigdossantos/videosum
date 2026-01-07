@@ -29,13 +29,6 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    /* YouTube brand colors */
-    --youtube-red: #ff0000;
-    --youtube-red-hover: #cc0000;
-    --youtube-blue: #065fd4;
-    --youtube-gray: #606060;
-    --youtube-light-gray: #aaaaaa;
-    --youtube-bg-hover: rgba(0, 0, 0, 0.05);
   }
 
   .dark {
@@ -63,13 +56,6 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    /* YouTube brand colors dark */
-    --youtube-red: #ff0000;
-    --youtube-red-hover: #ff4444;
-    --youtube-blue: #3ea6ff;
-    --youtube-gray: #aaaaaa;
-    --youtube-light-gray: #717171;
-    --youtube-bg-hover: rgba(255, 255, 255, 0.1);
   }
 }
 
@@ -82,29 +68,91 @@
   }
 }
 
-@layer utilities {
-  /* Serif reading typography */
-  .reading-prose {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 20px;
-    line-height: 1.55;
-    letter-spacing: 0.25px;
-    font-weight: 400;
+/* NYT-inspired editorial typography for notes and blog posts */
+@layer components {
+  .prose-editorial {
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    color: #374151;
   }
 
-  .reading-prose-mobile {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 18px;
-    line-height: 1.55;
-    letter-spacing: 0.25px;
-    font-weight: 400;
+  .prose-editorial h1 {
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-size: 2.25rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #111827;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #2563eb;
   }
 
-  .youtube-blue {
-    color: var(--youtube-blue);
+  .prose-editorial h2 {
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: #1f2937;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
   }
 
-  .timestamp-link {
-    @apply text-[var(--youtube-blue)] hover:underline cursor-pointer font-medium;
+  .prose-editorial h3 {
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #374151;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .prose-editorial p {
+    font-size: 1.125rem;
+    line-height: 1.8;
+    margin-bottom: 1.25rem;
+  }
+
+  .prose-editorial ul,
+  .prose-editorial ol {
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+    padding-left: 1.5rem;
+  }
+
+  .prose-editorial li {
+    font-size: 1.125rem;
+    line-height: 1.7;
+    margin-bottom: 0.5rem;
+    padding-left: 0.25rem;
+  }
+
+  .prose-editorial li::marker {
+    color: #6b7280;
+  }
+
+  .prose-editorial strong {
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .prose-editorial blockquote {
+    border-left: 4px solid #3b82f6;
+    padding-left: 1.5rem;
+    margin: 1.5rem 0;
+    font-style: italic;
+    color: #4b5563;
+  }
+
+  .prose-editorial code {
+    background-color: #f3f4f6;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.9em;
+  }
+
+  .prose-editorial hr {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 2rem 0;
   }
 }
