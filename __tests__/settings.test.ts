@@ -15,31 +15,22 @@ describe("Settings Module", () => {
   });
 
   describe("getNotesDirectory", () => {
-    it("returns default ~/ClassNotes when env var not set", async () => {
+    it("returns default ~/VideoSum when env var not set", async () => {
       delete process.env.CLASS_NOTES_DIR;
 
       const { getNotesDirectory } = await import("../lib/settings");
       const dir = await getNotesDirectory();
 
-      expect(dir).toBe(path.join(os.homedir(), "ClassNotes"));
+      expect(dir).toBe(path.join(os.homedir(), "VideoSum"));
     });
 
-    it("returns env var value with ~ expanded", async () => {
-      process.env.CLASS_NOTES_DIR = "~/CustomNotes";
+    it("uses env var value as the directory", async () => {
+      process.env.CLASS_NOTES_DIR = path.join(os.homedir(), "CustomNotes");
 
       const { getNotesDirectory } = await import("../lib/settings");
       const dir = await getNotesDirectory();
 
       expect(dir).toBe(path.join(os.homedir(), "CustomNotes"));
-    });
-
-    it("returns env var value without ~ as-is", async () => {
-      process.env.CLASS_NOTES_DIR = "/absolute/path/to/notes";
-
-      const { getNotesDirectory } = await import("../lib/settings");
-      const dir = await getNotesDirectory();
-
-      expect(dir).toBe("/absolute/path/to/notes");
     });
   });
 

@@ -156,7 +156,10 @@ export default function DemoPage() {
       .catch(() => setLibraryCount(0));
   }, []);
 
-  const handleFileSelect = useCallback(async (file: File) => {
+  const handleFilesSelect = useCallback(async (files: File[]) => {
+    const file = files[0];
+    if (!file) return;
+
     setViewState("processing");
     setError(null);
     setProgress({ step: "checking", message: "Starting..." });
@@ -354,7 +357,7 @@ export default function DemoPage() {
               </p>
             </div>
 
-            <UploadCard onFileSelect={handleFileSelect} />
+            <UploadCard onFilesSelect={handleFilesSelect} />
 
             {libraryCount !== null && libraryCount > 0 && (
               <div className="text-center">

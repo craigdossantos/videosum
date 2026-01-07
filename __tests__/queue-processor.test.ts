@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Mock dependencies before importing the module
-vi.mock("fs/promises", () => ({
-  access: vi.fn(),
-  unlink: vi.fn(),
-}));
+vi.mock("fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("fs/promises")>();
+  return {
+    ...actual,
+    access: vi.fn(),
+    unlink: vi.fn(),
+  };
+});
 
 vi.mock("../lib/queue", () => ({
   loadQueue: vi.fn(),
@@ -17,9 +21,13 @@ vi.mock("../lib/settings", () => ({
   getNotesDirectory: vi.fn().mockResolvedValue("/mock/notes"),
 }));
 
-vi.mock("child_process", () => ({
-  spawn: vi.fn(),
-}));
+vi.mock("child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("child_process")>();
+  return {
+    ...actual,
+    spawn: vi.fn(),
+  };
+});
 
 import { getQueueProcessor, type QueueEvent } from "../lib/queue-processor";
 import { loadQueue, getNextPendingItem } from "../lib/queue";

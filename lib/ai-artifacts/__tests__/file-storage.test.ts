@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createFileStorage } from "../file-storage";
 import * as fs from "fs/promises";
 import * as path from "path";
@@ -50,22 +51,22 @@ describe("file-storage", () => {
       expect(artifact.createdAt).toBeDefined();
     });
 
-    it("should create artifacts.json file in context directory", async () => {
+    it("should create artifacts directory in context folder", async () => {
       await storage.save("context-1", {
         title: "Test",
         content: "Content",
         prompt: "Test prompt",
       });
 
-      const filePath = path.join(testDir, "context-1", "artifacts.json");
+      const artifactsDir = path.join(testDir, "context-1", "artifacts");
       const exists = await fs
-        .access(filePath)
+        .access(artifactsDir)
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
     });
 
-    it("should persist artifact data to file", async () => {
+    it("should persist artifact as markdown file with frontmatter", async () => {
       const input = {
         title: "Persisted Artifact",
         content: "Persisted content",
@@ -74,12 +75,17 @@ describe("file-storage", () => {
 
       await storage.save("context-1", input);
 
-      const filePath = path.join(testDir, "context-1", "artifacts.json");
-      const data = JSON.parse(await fs.readFile(filePath, "utf-8"));
+      const artifactsDir = path.join(testDir, "context-1", "artifacts");
+      const files = await fs.readdir(artifactsDir);
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBe("persisted-artifact.md");
 
-      expect(data.version).toBe(1);
-      expect(data.artifacts).toHaveLength(1);
-      expect(data.artifacts[0].title).toBe(input.title);
+      const content = await fs.readFile(
+        path.join(artifactsDir, files[0]),
+        "utf-8",
+      );
+      expect(content).toContain("title: Persisted Artifact");
+      expect(content).toContain("Persisted content");
     });
 
     it("should append to existing artifacts", async () => {

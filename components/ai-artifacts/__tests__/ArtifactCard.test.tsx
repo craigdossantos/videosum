@@ -1,15 +1,16 @@
 /**
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 
 import React from "react";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ArtifactCard } from "../ArtifactCard";
 import type { Artifact } from "@/lib/ai-artifacts";
 
 // Mock URL methods
-global.URL.createObjectURL = jest.fn(() => "mock-url");
-global.URL.revokeObjectURL = jest.fn();
+global.URL.createObjectURL = vi.fn(() => "mock-url");
+global.URL.revokeObjectURL = vi.fn();
 
 describe("ArtifactCard", () => {
   const mockArtifact: Artifact = {
@@ -20,10 +21,10 @@ describe("ArtifactCard", () => {
     prompt: "Create a test artifact",
   };
 
-  const mockOnDelete = jest.fn();
+  const mockOnDelete = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("compact mode", () => {
@@ -91,8 +92,7 @@ describe("ArtifactCard", () => {
       const expandButton = buttons[buttons.length - 1];
       fireEvent.click(expandButton);
 
-      // Content should now be visible (mock renders full markdown as-is)
-      expect(screen.getByTestId("markdown-content")).toBeInTheDocument();
+      // Content should now be visible after expanding
       expect(screen.getByText(/Test Content/)).toBeInTheDocument();
     });
 
@@ -122,19 +122,19 @@ describe("ArtifactCard", () => {
 
   describe("download functionality", () => {
     it("should create blob and trigger download", () => {
-      const mockClick = jest.fn();
+      const mockClick = vi.fn();
 
       // Store original createElement
       const originalCreateElement = document.createElement.bind(document);
 
       // Mock only anchor elements
-      jest.spyOn(document, "createElement").mockImplementation((tag) => {
+      vi.spyOn(document, "createElement").mockImplementation((tag) => {
         if (tag === "a") {
           return {
             href: "",
             download: "",
             click: mockClick,
-            setAttribute: jest.fn(),
+            setAttribute: vi.fn(),
             style: {},
           } as unknown as HTMLElement;
         }
@@ -157,7 +157,7 @@ describe("ArtifactCard", () => {
       expect(global.URL.revokeObjectURL).toHaveBeenCalled();
 
       // Restore
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
     });
   });
 });

@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import type {
   Artifact,
   CreateArtifactInput,
@@ -22,15 +23,16 @@ describe("types", () => {
       expect(artifact.prompt).toBe("Create something");
     });
 
-    it("should allow optional prompt field", () => {
+    it("should require prompt field", () => {
       const artifact: Artifact = {
         id: "art_123",
         title: "Test",
         content: "Content",
         createdAt: "2024-01-01T00:00:00Z",
+        prompt: "Test prompt",
       };
 
-      expect(artifact.prompt).toBeUndefined();
+      expect(artifact.prompt).toBe("Test prompt");
     });
   });
 
@@ -47,13 +49,14 @@ describe("types", () => {
       expect(input.prompt).toBe("User prompt");
     });
 
-    it("should allow optional prompt", () => {
+    it("should require prompt", () => {
       const input: CreateArtifactInput = {
         title: "New Artifact",
         content: "Some content",
+        prompt: "Create this artifact",
       };
 
-      expect(input.prompt).toBeUndefined();
+      expect(input.prompt).toBe("Create this artifact");
     });
   });
 
@@ -64,6 +67,7 @@ describe("types", () => {
         title: "Infographic",
         content: "# Visual content",
         createdAt: "2024-01-01T00:00:00Z",
+        prompt: "Create an infographic",
         imageUrl: "https://example.com/image.png",
       };
 
@@ -77,6 +81,7 @@ describe("types", () => {
         title: "Infographic with Data",
         content: "Content",
         createdAt: "2024-01-01T00:00:00Z",
+        prompt: "Generate image",
         imageData: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA...",
       };
 

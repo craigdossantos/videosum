@@ -3,6 +3,7 @@
  * Tests the route handlers by mocking the storage
  */
 
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
@@ -23,7 +24,7 @@ describe("artifacts API route", () => {
     process.env.CLASS_NOTES_DIR = testDir;
 
     // Clear the module cache and re-import
-    jest.resetModules();
+    vi.resetModules();
     const routeModule = await import("../[contextId]/artifacts/route");
     GET = routeModule.GET;
     POST = routeModule.POST;
@@ -163,14 +164,16 @@ describe("artifacts API route", () => {
 
       await POST(request, { params });
 
-      // Verify file was created
-      const filePath = path.join(testDir, "test-context", "artifacts.json");
-      const fileContent = await fs.readFile(filePath, "utf-8");
-      const data = JSON.parse(fileContent);
+      // Verify artifact file was created in artifacts directory
+      const artifactsDir = path.join(testDir, "test-context", "artifacts");
+      const files = await fs.readdir(artifactsDir);
+      expect(files).toHaveLength(1);
 
-      expect(data.version).toBe(1);
-      expect(data.artifacts).toHaveLength(1);
-      expect(data.artifacts[0].title).toBe("Persisted");
+      const content = await fs.readFile(
+        path.join(artifactsDir, files[0]),
+        "utf-8",
+      );
+      expect(content).toContain("title: Persisted");
     });
   });
 

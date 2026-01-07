@@ -3,17 +3,22 @@
  * Mocks the Anthropic SDK to test request/response handling
  */
 
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-// Create mock before importing the module
-const mockCreate = jest.fn();
+// Use vi.hoisted to create mock functions that are available during mock setup
+const { mockCreate } = vi.hoisted(() => ({
+  mockCreate: vi.fn(),
+}));
 
-jest.mock("@anthropic-ai/sdk", () => {
-  return jest.fn().mockImplementation(() => ({
-    messages: {
-      create: mockCreate,
-    },
-  }));
+vi.mock("@anthropic-ai/sdk", () => {
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      messages: {
+        create: mockCreate,
+      },
+    })),
+  };
 });
 
 // Import after mocking
@@ -23,7 +28,7 @@ describe("chat API route", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     process.env = { ...originalEnv, ANTHROPIC_API_KEY: "test-api-key" };
   });
 

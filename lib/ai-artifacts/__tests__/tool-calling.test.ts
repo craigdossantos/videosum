@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import { CREATE_ARTIFACT_TOOL, isArtifactToolUse } from "../tool-calling";
 import type Anthropic from "@anthropic-ai/sdk";
 
@@ -60,11 +61,11 @@ describe("tool-calling", () => {
     });
 
     it("should return false for text block", () => {
-      const block: Anthropic.TextBlock = {
-        type: "text",
+      const block = {
+        type: "text" as const,
         text: "Hello world",
       };
-      expect(isArtifactToolUse(block)).toBe(false);
+      expect(isArtifactToolUse(block as Anthropic.TextBlock)).toBe(false);
     });
   });
 });
