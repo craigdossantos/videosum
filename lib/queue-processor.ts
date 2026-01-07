@@ -206,8 +206,13 @@ class QueueProcessor {
     }
 
     return new Promise((resolve, reject) => {
-      const args = [scriptPath, item.filePath, outputDir];
-      if (item.folder) {
+      // Build args based on whether this is a reprocess job
+      const args = item.isReprocess
+        ? [scriptPath, item.filePath, "--reprocess"]
+        : [scriptPath, item.filePath, outputDir];
+
+      // Only add --folder for regular processing (not reprocess)
+      if (!item.isReprocess && item.folder) {
         args.push("--folder", item.folder);
       }
 
@@ -248,8 +253,10 @@ class QueueProcessor {
       });
 
       pythonProcess.on("close", async (code) => {
-        // Clean up temp file
-        await unlink(item.filePath).catch(() => {});
+        // Clean up temp file (only for regular processing, not reprocess)
+        if (!item.isReprocess) {
+          await unlink(item.filePath).catch(() => {});
+        }
 
         if (code === 0) {
           try {
@@ -280,7 +287,10 @@ class QueueProcessor {
       });
 
       pythonProcess.on("error", async (err) => {
-        await unlink(item.filePath).catch(() => {});
+        // Clean up temp file (only for regular processing, not reprocess)
+        if (!item.isReprocess) {
+          await unlink(item.filePath).catch(() => {});
+        }
         reject(new Error(`Failed to start process: ${err.message}`));
       });
     });

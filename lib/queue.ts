@@ -13,10 +13,11 @@ export interface QueueItemProgress {
 
 export interface QueueItem {
   id: string;
-  filePath: string; // Temp file path
+  filePath: string; // Temp file path (or folder path for reprocess)
   originalFileName: string;
   fileSize: number;
   folder?: string;
+  isReprocess?: boolean; // True when regenerating summary from existing transcript
   status: "pending" | "processing" | "completed" | "failed" | "cancelled";
   createdAt: string;
   startedAt?: string;
@@ -110,6 +111,29 @@ export async function addToQueue(
   await saveQueue(state);
 
   return newItems;
+}
+
+export async function addReprocessItem(
+  folderId: string,
+  folderPath: string,
+): Promise<QueueItem> {
+  const state = await loadQueue();
+
+  const newItem: QueueItem = {
+    id: uuidv4(),
+    filePath: folderPath,
+    originalFileName: `Reprocess: ${folderId}`,
+    fileSize: 0,
+    folder: folderId,
+    isReprocess: true,
+    status: "pending" as const,
+    createdAt: new Date().toISOString(),
+  };
+
+  state.items.push(newItem);
+  await saveQueue(state);
+
+  return newItem;
 }
 
 export async function updateQueueItem(

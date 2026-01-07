@@ -541,18 +541,72 @@ def process_video(video_path: str, output_base: str) -> dict:
     }
 
 
+def reprocess_notes(folder_path: str) -> dict:
+    """Reprocess existing notes folder - regenerate summary from existing transcript."""
+    folder = Path(folder_path).expanduser().resolve()
+
+    if not folder.exists():
+        raise FileNotFoundError(f"Folder not found: {folder}")
+
+    # Load existing transcript
+    transcript_path = folder / 'transcript.txt'
+    if not transcript_path.exists():
+        raise FileNotFoundError("Transcript not found - cannot reprocess")
+
+    emit_progress('loading', 'Loading existing transcript...')
+    transcript = transcript_path.read_text(encoding='utf-8')
+
+    # Load metadata for title
+    metadata_path = folder / 'metadata.json'
+    metadata = json.loads(metadata_path.read_text(encoding='utf-8')) if metadata_path.exists() else {}
+    title = metadata.get('title', folder.name)
+
+    # Regenerate summary
+    emit_progress('summarizing', 'Regenerating summary with updated prompts...')
+    notes, summary_cost = summarize(transcript, title)
+
+    # Save new summary
+    notes_path = folder / 'notes.md'
+    notes_path.write_text(notes, encoding='utf-8')
+
+    # Update metadata
+    metadata['reprocessed_at'] = datetime.now().isoformat()
+    metadata['summary_cost'] = summary_cost
+    if 'cost' in metadata:
+        # Keep original transcription cost, only update summary cost
+        metadata['cost'] = metadata.get('transcription_cost', 0) + summary_cost
+    metadata_path.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+
+    emit_progress('complete', f'Reprocessed! Cost: ${summary_cost:.2f}')
+
+    return {
+        'status': 'success',
+        'folder': str(folder),
+        'folder_id': folder.name,
+        'title': title,
+        'cost': summary_cost
+    }
+
+
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Process a video file and generate class notes.')
-    parser.add_argument('video_path', help='Path to the video file')
-    parser.add_argument('output_dir', help='Directory to store output files')
+    parser.add_argument('video_path', help='Path to the video file or folder to reprocess')
+    parser.add_argument('output_dir', nargs='?', help='Directory to store output files (not needed for reprocess)')
     parser.add_argument('--folder', help='Optional folder name (not used currently)', default=None)
+    parser.add_argument('--reprocess', action='store_true', help='Reprocess existing folder (regenerate summary from existing transcript)')
 
     args = parser.parse_args()
 
     try:
-        result = process_video(args.video_path, args.output_dir)
+        if args.reprocess:
+            # video_path is actually the folder path when reprocessing
+            result = reprocess_notes(args.video_path)
+        else:
+            if not args.output_dir:
+                raise ValueError("output_dir required when not reprocessing")
+            result = process_video(args.video_path, args.output_dir)
         print(json.dumps(result))
     except Exception as e:
         print(json.dumps({'status': 'error', 'message': str(e)}))
