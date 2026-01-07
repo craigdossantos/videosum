@@ -692,6 +692,58 @@ def process_video(video_path: str, output_base: str, subfolder: str = None) -> d
     }
 
 
+def reprocess_notes(folder_path: str) -> dict:
+    """Reprocess existing notes folder - regenerate summary from existing transcript."""
+    folder = Path(folder_path).expanduser().resolve()
+
+    if not folder.exists():
+        raise FileNotFoundError(f"Folder not found: {folder}")
+
+    # Load existing transcript
+    transcript_path = folder / 'transcript.txt'
+    if not transcript_path.exists():
+        raise FileNotFoundError("Transcript not found - cannot reprocess")
+
+    emit_progress('loading', 'Loading existing transcript...')
+    transcript = transcript_path.read_text(encoding='utf-8')
+
+    # Load metadata for duration
+    metadata_path = folder / 'metadata.json'
+    metadata = json.loads(metadata_path.read_text(encoding='utf-8')) if metadata_path.exists() else {}
+    duration_seconds = metadata.get('duration_seconds', 0)
+
+    # Regenerate summary
+    emit_progress('summarizing', 'Regenerating summary with updated prompts...')
+    notes, summary_cost = generate_notes(transcript, duration_seconds)
+
+    # Save new summary
+    notes_path = folder / 'notes.md'
+    notes_path.write_text(notes, encoding='utf-8')
+
+    # Extract title from notes (first H1)
+    title_match = re.search(r'^# (.+)$', notes, re.MULTILINE)
+    title = title_match.group(1) if title_match else folder.name
+
+    # Update metadata
+    metadata['title'] = title
+    metadata['reprocessed_at'] = datetime.now().isoformat()
+    metadata['summary_cost'] = summary_cost
+    if 'cost' in metadata:
+        # Keep original transcription cost, only update summary cost
+        metadata['cost'] = metadata.get('transcription_cost', 0) + summary_cost
+    metadata_path.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+
+    emit_progress('complete', f'Reprocessed! Cost: ${summary_cost:.2f}')
+
+    return {
+        'status': 'success',
+        'folder': str(folder),
+        'folder_id': folder.name,
+        'title': title,
+        'cost': summary_cost
+    }
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Process a video file and generate class notes.',
@@ -700,17 +752,25 @@ if __name__ == '__main__':
 Examples:
     python3 process_video.py ~/Videos/class.mp4 ~/VideoSum
     python3 process_video.py ~/Videos/class.mp4 ~/VideoSum --folder "School/Math 101"
+    python3 process_video.py ~/ClassNotes/2026-01-06-abc123 --reprocess
         '''
     )
-    parser.add_argument('video_path', help='Path to the video file')
-    parser.add_argument('output_dir', help='Base directory for notes output')
+    parser.add_argument('video_path', help='Path to the video file or folder to reprocess')
+    parser.add_argument('output_dir', nargs='?', help='Base directory for notes output (not needed for reprocess)')
     parser.add_argument('--folder', '-f', dest='subfolder',
                         help='Subfolder within output_dir (e.g., "School/Math 101")')
+    parser.add_argument('--reprocess', action='store_true', help='Reprocess existing folder (regenerate summary from existing transcript)')
 
     args = parser.parse_args()
 
     try:
-        result = process_video(args.video_path, args.output_dir, args.subfolder)
+        if args.reprocess:
+            # video_path is actually the folder path when reprocessing
+            result = reprocess_notes(args.video_path)
+        else:
+            if not args.output_dir:
+                raise ValueError("output_dir required when not reprocessing")
+            result = process_video(args.video_path, args.output_dir, args.subfolder)
         print(json.dumps(result))
     except Exception as e:
         print(json.dumps({'status': 'error', 'message': str(e)}))

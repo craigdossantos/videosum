@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { QueueState, QueueItem } from "@/lib/queue";
 import { LoaderIcon, CheckCircleIcon, XIcon } from "./Icons";
 
@@ -247,26 +247,32 @@ function QueueItemRow({
         </p>
         <div className="flex items-center gap-2 text-xs">
           <span className="text-gray-500">{formatFileSize(item.fileSize)}</span>
-          {item.progress && item.status === "processing" && (
-            <span className="text-blue-600">{item.progress.message}</span>
-          )}
           {item.error && (
             <span className="text-red-500 truncate" title={item.error}>
               {item.error}
             </span>
           )}
         </div>
-        {item.status === "processing" &&
-          item.progress?.progress !== undefined && (
-            <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
-              <div
-                className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                style={{
-                  width: `${item.progress.total ? (item.progress.progress / item.progress.total) * 100 : 0}%`,
-                }}
-              />
-            </div>
-          )}
+        {item.status === "processing" && (
+          <div className="mt-1">
+            {item.progress?.message && (
+              <div className="text-xs text-blue-600 mb-1 font-medium">
+                {item.progress.message}
+              </div>
+            )}
+            {item.progress?.progress !== undefined &&
+              item.progress?.total !== undefined && (
+                <div className="w-full bg-gray-200 rounded-full h-1.5">
+                  <div
+                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${(item.progress.progress / item.progress.total) * 100}%`,
+                    }}
+                  />
+                </div>
+              )}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-1">
@@ -318,6 +324,18 @@ export function QueuePanel({
 }: QueuePanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
+  // Auto-expand when new items arrive or processing starts
+  useEffect(() => {
+    if (
+      queueState?.items.some(
+        (i) => i.status === "pending" || i.status === "processing",
+      )
+    ) {
+      setIsExpanded(true);
+    }
+  }, [queueState?.items.length, queueState?.items]);
+
+  // Don't render panel if no items
   if (!queueState || queueState.items.length === 0) {
     return null;
   }
