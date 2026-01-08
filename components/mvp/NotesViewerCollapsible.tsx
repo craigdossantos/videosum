@@ -145,14 +145,17 @@ const NotesViewerCollapsible: React.FC<NotesViewerProps> = ({
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/class-notes/${id}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMessage,
-          history: messages,
-        }),
-      });
+      const response = await fetch(
+        `/api/class-notes/${encodeURIComponent(id)}/chat`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: userMessage,
+            history: messages,
+          }),
+        },
+      );
 
       const data = await response.json();
 

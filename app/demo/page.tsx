@@ -240,7 +240,9 @@ export default function DemoPage() {
 
       if (result.status === "duplicate") {
         // Handle duplicate - show existing notes
-        const notesRes = await fetch(`/api/class-notes/${result.folder_name}`);
+        const notesRes = await fetch(
+          `/api/class-notes/${encodeURIComponent(result.folder_name)}`,
+        );
         if (!notesRes.ok) {
           throw new Error("Failed to load existing notes");
         }
@@ -251,7 +253,9 @@ export default function DemoPage() {
       }
 
       // Fetch the full notes for the processed video
-      const notesRes = await fetch(`/api/class-notes/${result.folder_name}`);
+      const notesRes = await fetch(
+        `/api/class-notes/${encodeURIComponent(result.folder_name)}`,
+      );
       if (!notesRes.ok) {
         throw new Error("Failed to load processed notes");
       }
@@ -274,7 +278,7 @@ export default function DemoPage() {
     setProgress({ step: "checking", message: "Loading notes..." });
 
     try {
-      const res = await fetch(`/api/class-notes/${id}`);
+      const res = await fetch(`/api/class-notes/${encodeURIComponent(id)}`);
       if (!res.ok) {
         throw new Error("Failed to load notes");
       }

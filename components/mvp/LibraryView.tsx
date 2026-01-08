@@ -203,9 +203,12 @@ const LibraryView: React.FC<LibraryViewProps> = ({
     setReprocessingIds((prev) => new Set(prev).add(videoId));
 
     try {
-      const res = await fetch(`/api/class-notes/${videoId}/reprocess`, {
-        method: "POST",
-      });
+      const res = await fetch(
+        `/api/class-notes/${encodeURIComponent(videoId)}/reprocess`,
+        {
+          method: "POST",
+        },
+      );
 
       if (!res.ok) {
         const data = await res.json();
@@ -258,11 +261,15 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+    <div
+      data-testid="library-view"
+      className="bg-white rounded-xl shadow-sm border border-gray-200"
+    >
       {/* Header */}
       <div className="border-b border-gray-200 p-4">
         <div className="flex items-center gap-3">
           <button
+            data-testid="library-back-button"
             onClick={onBack}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Go back"

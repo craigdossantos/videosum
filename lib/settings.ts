@@ -16,6 +16,17 @@ export interface AppSettings {
 const DEFAULT_NOTES_DIR = path.join(os.homedir(), "VideoSum");
 const SETTINGS_FILE = "settings.json";
 
+// Expand ~ to home directory in paths
+function expandTilde(filepath: string): string {
+  if (filepath.startsWith("~/")) {
+    return path.join(os.homedir(), filepath.slice(2));
+  }
+  if (filepath === "~") {
+    return os.homedir();
+  }
+  return filepath;
+}
+
 // Get the settings file path (inside the notes directory)
 function getSettingsPath(notesDir: string): string {
   return path.join(notesDir, SETTINGS_FILE);
@@ -38,8 +49,9 @@ export function getQueueDirectory(): string {
  * Checks global config first, then settings in notes directory
  */
 export async function loadSettings(): Promise<AppSettings> {
+  const envDir = process.env.CLASS_NOTES_DIR;
   const defaults: AppSettings = {
-    notesDirectory: process.env.CLASS_NOTES_DIR || DEFAULT_NOTES_DIR,
+    notesDirectory: envDir ? expandTilde(envDir) : DEFAULT_NOTES_DIR,
   };
 
   // Try to load from global config first (for bootstrap)
