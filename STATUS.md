@@ -1,14 +1,39 @@
-# VideoSum - Current Status (January 6, 2026)
+# VideoSum - Current Status (January 8, 2026)
 
 ## 🎯 Where We Are Now
 
 **Phase**: 4 of 10 (MVP Polish & Launch)
-**Progress**: 82% complete (7.5/9 Phase 4 items done)
-**Latest Commit**: Queue visibility fixes + video reprocess feature
+**Progress**: 85% complete
+**Latest Commit**: Custom app icon + Electron build fix
 
 ---
 
-## ✅ What Just Got Completed (Jan 6, 2026)
+## ✅ What Just Got Completed (Jan 8, 2026)
+
+### Electron Desktop App
+
+- ✅ **Custom App Icon**: Video-to-notes icon (video player → arrow → notes document)
+  - Purple video player with play button and window controls
+  - Gradient arrow showing transformation
+  - Green notes/document icon with text lines
+  - Gold sparkle accent for AI indicator
+- ✅ **Icon Generation**: Script to create PNG, ICNS, ICO from SVG source
+- ✅ **Build Fix**: Fixed "Failed to start application server" error
+  - `node_modules` not being copied to packaged app (now fixed)
+- ✅ **TypeScript Fix**: Fixed optional `folder_name` null handling
+
+### Files Added/Modified
+
+- `public/icon.svg` - Source vector icon
+- `public/icon.png` - 1024x1024 for Linux
+- `public/icon.icns` - macOS app bundle
+- `public/icon.ico` - Windows executable
+- `scripts/generate-icons.mjs` - Icon generation script
+- `package.json` - Icon paths + node_modules extraResources fix
+
+---
+
+## ✅ Previously Completed (Jan 6, 2026)
 
 ### Queue & Processing Improvements
 
@@ -24,14 +49,6 @@
 - ✅ **Python Function Error**: Corrected `summarize` → `generate_notes` call
 - ✅ **Metadata Updates**: Reprocessed videos now update title and costs correctly
 - ✅ **SSE State Sync**: Immediate queue state refresh after uploads
-
-### Components Updated
-
-- `hooks/useQueueEvents.ts`: Added immediate state refresh after upload
-- `components/mvp/QueuePanel.tsx`: Enhanced auto-expansion logic
-- `app/api/class-notes/[id]/reprocess/route.ts`: New reprocess endpoint
-- `scripts/process_video.py`: Added `reprocess_notes()` function
-- `lib/queue-processor.ts`: Handle reprocess items differently
 
 ---
 

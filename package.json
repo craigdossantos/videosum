@@ -13,6 +13,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:all": "vitest run && playwright test",
     "electron:dev": "concurrently \"npm run dev -- -p 3005\" \"wait-on http://localhost:3005 && electron .\"",
     "electron:build": "npm run build && electron-builder",
     "electron:build:mac": "npm run build && electron-builder --mac",
@@ -33,6 +36,13 @@
       {
         "from": ".next/standalone",
         "to": "standalone",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": ".next/standalone/node_modules",
+        "to": "standalone/node_modules",
         "filter": [
           "**/*"
         ]
@@ -61,6 +71,7 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "public/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -130,6 +141,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
@@ -145,7 +157,9 @@
     "eslint": "^9.38.0",
     "eslint-config-next": "^16.0.0",
     "jsdom": "^27.0.1",
+    "png-to-ico": "^3.0.1",
     "postcss": "^8.5.6",
+    "sharp": "^0.34.5",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4",
     "wait-on": "^9.0.3"

@@ -240,6 +240,9 @@ export default function DemoPage() {
 
       if (result.status === "duplicate") {
         // Handle duplicate - show existing notes
+        if (!result.folder_name) {
+          throw new Error("Missing folder name in duplicate response");
+        }
         const notesRes = await fetch(
           `/api/class-notes/${encodeURIComponent(result.folder_name)}`,
         );
@@ -253,6 +256,9 @@ export default function DemoPage() {
       }
 
       // Fetch the full notes for the processed video
+      if (!result.folder_name) {
+        throw new Error("Missing folder name in processing response");
+      }
       const notesRes = await fetch(
         `/api/class-notes/${encodeURIComponent(result.folder_name)}`,
       );

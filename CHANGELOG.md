@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-01-08
+
+### Added
+
+- **Custom App Icon**: Video-to-notes icon showing video player transforming into document
+  - SVG source with purple video player, gradient arrow, green notes icon
+  - Generated PNG (1024x1024), ICNS (macOS), and ICO (Windows) formats
+  - Icon generation script: `scripts/generate-icons.mjs`
+- **Icon Dependencies**: Added `sharp` and `png-to-ico` for icon generation
+
+### Fixed
+
+- **Electron Build**: Fixed "Failed to start application server" error on launch
+  - Root cause: `node_modules` folder not being copied to packaged app
+  - Added explicit `extraResources` entry for `.next/standalone/node_modules`
+- **TypeScript Error**: Fixed optional `folder_name` property usage in `app/demo/page.tsx`
+  - Added null guards before `encodeURIComponent` calls
+
 ## [0.2.1] - 2026-01-06
 
 ### Added
