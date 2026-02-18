@@ -47,13 +47,12 @@ Renderer (React)                 Main Process (electron/main.js)
   │ ◄───────────────────────────── │
   │ { success: true }              │
   │                                │
-  │ POST /api/class-notes/[id]     │
-  │   (DELETE method)              │
-  │   → removes ID from folders.json
-  │   → confirms folder gone from disk
+  │ DELETE /api/class-notes/[id]   │
+  │   → removes ID from all folders in folders.json
+  │   → attempts fs.rm() (no-op if already trashed)
 ```
 
-When running in dev mode (no Electron), the delete button checks `window.electronAPI` existence. If unavailable, it falls back to calling the DELETE API route which uses `fs.rm()` for permanent deletion — acceptable for dev/testing.
+When running in dev mode (no Electron), `window.electronAPI` is undefined. The delete button skips the IPC trash call and only calls the DELETE API route, which uses `fs.rm()` for permanent deletion — acceptable for dev/testing. In Electron, the delete button calls `trashItem()` first (moves to OS trash), then calls the DELETE route to clean up folders.json (the route's `fs.rm()` call is a no-op since the folder is already gone, thanks to `force: true`).
 
 ### Key Design Decisions
 
@@ -63,7 +62,7 @@ When running in dev mode (no Electron), the delete button checks `window.electro
 
 3. **Client-side sort/filter.** The library API already returns all videos in memory. Sort and filter happen in `LibraryView` state — no new API endpoints needed.
 
-4. **`@dnd-kit/core` + `@dnd-kit/sortable` for drag-to-reorder.** Lightweight, well-maintained. Only needed in `FolderView`. Persist via existing `reorderVideosInFolder()` in `lib/folders.ts` (already implemented) and the existing `PUT /api/folders/[id]` reorder endpoint (needs creation — currently only GET exists for individual folders).
+4. **`@dnd-kit/core` + `@dnd-kit/sortable` for drag-to-reorder.** Lightweight, well-maintained. Only needed in `FolderView`. Persist via `reorderVideosInFolder()` in `lib/folders.ts` (already implemented) and the existing `PATCH /api/folders/[id]` endpoint (already accepts `{ videoIds }` and calls `reorderVideosInFolder` — no new endpoint needed).
 
 5. **Electron preload script.** Create `electron/preload.js` exposing `window.electronAPI.trashItem(path)`. Update `electron/main.js` to register the preload script and handle the `trash-item` IPC channel. The renderer calls `window.electronAPI?.trashItem()` with optional chaining — graceful no-op when Electron is not present.
 
@@ -145,17 +144,19 @@ No test file for this subtask — Electron IPC is verified via manual testing in
 **Depends on:** none
 **Files:** `app/api/class-notes/[id]/route.ts`, `lib/folders.ts`, `__tests__/api/class-notes-delete.test.ts` (new)
 
-Add a `DELETE` handler to the existing `[id]/route.ts`. Steps: (1) resolve the full path to the video folder using `getNotesDirectory()` + decoded ID, (2) verify the folder exists (404 if not), (3) call `removeVideoFromAllFolders(videoId)` — a new function in `lib/folders.ts` that iterates all folders and removes the ID from any `videoIds` arrays, (4) attempt to delete the folder from disk using `fs.rm(path, { recursive: true, force: true })` — this is the fallback for non-Electron environments, (5) return `{ success: true }`.
+Add a `DELETE` handler to the existing `[id]/route.ts`. Steps: (1) resolve the full path to the video folder using `getNotesDirectory()` + decoded ID, (2) call `removeVideoFromAllFolders(videoId)` — a new function in `lib/folders.ts` that iterates all folders and removes the ID from any `videoIds` arrays (always runs, even if folder is already gone from disk), (3) attempt to delete the folder from disk using `fs.rm(path, { recursive: true, force: true })` — if the folder is already gone (e.g., Electron already trashed it), `force: true` prevents ENOENT errors, (4) return `{ success: true }`. Note: no 404 on missing folder — the handler is idempotent. The Electron flow calls `trashItem()` first, so the folder may already be gone when the DELETE handler runs; the handler must still clean up folders.json regardless.
 
-The new `removeVideoFromAllFolders` function in `lib/folders.ts`: load `getFoldersData()`, filter the videoId out of every folder's `videoIds` array, save. Follow the pattern of existing `removeVideoFromFolder()` but iterate all folders.
+Also add `folder_path` to the library API response. In the existing GET handler at `app/api/class-notes/[id]/route.ts`, the response already includes `id` (the folder name). Add the resolved absolute path as `folder_path: path.join(getNotesDirectory(), id)` so the client can pass it to `electronAPI.trashItem()`. Similarly, ensure the library listing API at `app/api/class-notes/library/route.ts` includes `folder_path` in each record.
+
+The new `removeVideoFromAllFolders` function in `lib/folders.ts`: load `getFoldersData()`, filter the videoId out of every folder's `videoIds` array, save. Follow the pattern of existing `removeVideoFromFolder()` but iterate all folders. A video can legitimately appear in multiple folders (the UI allows adding the same video to different folders), so this function must check all folders.
 
 Satisfies R2 (folder cleanup part).
 
 **Test scenarios:** (`__tests__/api/class-notes-delete.test.ts`)
 
-- DELETE with valid ID → removes folder from disk, returns `{ success: true }`
+- DELETE with valid ID → removes folder from disk, cleans folders.json, returns `{ success: true }`
 - DELETE with valid ID that's in 2 folders → ID removed from both folders in folders.json
-- DELETE with non-existent ID → returns 404
+- DELETE with ID whose folder is already gone (Electron already trashed) → still cleans folders.json, returns `{ success: true }` (not 404)
 - DELETE with ID not in any folder → still succeeds (just deletes folder from disk)
 - `removeVideoFromAllFolders("video-1")` with video in folders A and B → video removed from both, other videos untouched
 
@@ -166,7 +167,7 @@ Satisfies R2 (folder cleanup part).
 **Depends on:** 2.1, 2.2
 **Files:** `components/mvp/LibraryView.tsx`, `__tests__/components/LibraryView.test.tsx`
 
-Add a trash icon button to each video row in `LibraryView` (next to the existing reprocess button). On click, show a confirmation dialog (`window.confirm()` — matches existing reprocess pattern). On confirm: (1) if `window.electronAPI?.trashItem` exists, call it with the full folder path, (2) regardless, call `DELETE /api/class-notes/${videoId}` to clean up folders.json and (for non-Electron) delete from disk, (3) remove the video from local state (`setVideos`). The folder path for the trash call is constructed from the video ID — it's the folder name under the notes base directory. The base directory comes from a new API call or can be passed as a prop. Simpler approach: let the DELETE API route handle the actual deletion; the Electron trash call is an optimization that runs first when available. If the Electron trash call succeeds, the DELETE route will find the folder already gone and just clean up folders.json.
+Add a trash icon button to each video row in `LibraryView` (next to the existing reprocess button). On click, show a confirmation dialog (`window.confirm()` — matches existing reprocess pattern). On confirm: (1) if `window.electronAPI?.trashItem` exists, call it with `record.folder_path` (the library API returns this — see note in 2.2 about adding `folder_path` to the response), (2) call `DELETE /api/class-notes/${videoId}` to clean up folders.json and delete from disk (for non-Electron, `fs.rm()` handles deletion; for Electron, the folder is already trashed so the handler skips disk deletion gracefully), (3) remove the video from local state (`setVideos`).
 
 Add the delete button using the existing `TrashIcon` pattern from `QueuePanel.tsx` (inline SVG).
 
@@ -188,7 +189,9 @@ Satisfies R2, R9 (LibraryView part).
 **Depends on:** 2.2, 2.3
 **Files:** `components/mvp/FolderView.tsx`, `components/mvp/NotesViewer.tsx`
 
-Add the same delete pattern (trash icon + confirm + API call) to FolderView video cards and NotesViewer header. In FolderView, the delete button replaces the existing "remove from folder" X button — or sits alongside it (delete = permanent, X = just remove from folder). In NotesViewer, add a delete button to the header action bar (next to download buttons). After successful delete in NotesViewer, call `onBack()` to return to library.
+Add the same delete pattern (trash icon + confirm + API call) to FolderView video cards and NotesViewer header. In FolderView, the delete button sits alongside the existing "remove from folder" X button — they have different semantics: the X removes the video from this folder only (leaving it in the library), while the trash icon permanently deletes the video (sends to OS trash). Place the trash icon to the left of the X button, visually distinct (red-tinted trash icon vs neutral X). When a video is deleted from a folder, also check if the folder has generated content (`overview.md`, `combined-blog.md`) — these become stale but do not need automatic invalidation in this version (the user can regenerate manually).
+
+In NotesViewer, add a delete button to the header action bar (next to download buttons). After successful delete in NotesViewer, call `onBack()` to return to library.
 
 `NotesViewer` currently doesn't have the video ID in a format suitable for the DELETE call — it already receives `id` as a prop which is the folder name, so `DELETE /api/class-notes/${encodeURIComponent(id)}` works directly.
 
@@ -237,7 +240,7 @@ Major refactor of the main page:
 
 1. Change `ViewState` from `"idle" | "processing" | "viewing" | "library" | "folder"` to `"library" | "folder" | "viewing"`. Default to `"library"`.
 
-2. Remove `ProcessingView` component and all inline SSE processing code from `handleFilesSelect`. Replace with: create FormData, POST to `/api/queue` (the existing queue endpoint), done. The queue panel handles progress display. This means removing the SSE reader, `ProgressState`, the `STEPS` array, and `getStepIndex` from this file — the queue panel already has its own progress display.
+2. Remove `ProcessingView` component and all inline SSE processing code from `handleFilesSelect`. Replace with: create FormData, POST to `/api/queue` (the existing queue endpoint), done. The queue panel handles progress display. This means removing the SSE reader, `ProgressState`, the `STEPS` array, and `getStepIndex` from this file — delete them entirely (the step mapping is redefined inline in QueuePanel in Section 6.1).
 
 3. Layout structure: always render the header, always render a `CompactUploadBar` (when library has videos) OR the full `UploadCard` empty state (when 0 videos). Below that, render the current view (`LibraryView`, `FolderView`, or `NotesViewer`).
 
@@ -267,9 +270,9 @@ Satisfies R1, R5.
 
 Connect the restructured page to the existing queue system. The page needs: (1) `useQueueEvents()` hook for real-time queue state, (2) `QueuePanel` rendered at the bottom (already exists, just needs to be added to the page layout since it was previously missing or conditionally rendered), (3) the upload bar's `onFilesSelect` handler POSTs to `/api/queue`.
 
-Check if `useQueueEvents` is already used in `page.tsx` — from the code exploration, it's NOT currently imported. The current flow is inline SSE. Add the import and hook call. Render `QueuePanel` with the queue state and action handlers (`onRemoveItem`, `onRetryItem`, `onClearCompleted` → existing queue API calls).
+`useQueueEvents` is not currently imported in `page.tsx` — the current flow is inline SSE. Add the import and hook call. Render `QueuePanel` with the queue state and action handlers (`onRemoveItem`, `onRetryItem`, `onClearCompleted` → existing queue API calls).
 
-When a queue item completes and the user is on the library view, the library should refresh. Add a `useEffect` that watches for completed items in `queueState` and refetches the library data. The simplest approach: pass a `refreshKey` counter to `LibraryView` that increments when a queue item completes.
+When a queue item completes and the user is on the library view, the library should refresh. Add a `useEffect` that watches `queueState.items` for items transitioning to status `"completed"` that were not previously `"completed"`. When detected, increment a `refreshKey` counter passed to `LibraryView` (which triggers its `fetchData()` via a `useEffect` dependency). When the user is on FolderView or NotesViewer, the library does not refresh — it refreshes on next navigation to library view. Batch completions (multiple items completing in quick succession) are handled naturally since each state update increments the counter.
 
 Satisfies R5 (non-blocking processing).
 
@@ -294,9 +297,9 @@ Satisfies R5 (non-blocking processing).
 
 Add a toolbar below the header with: (1) a search input (text filter), (2) a sort dropdown. All client-side — videos are already loaded in state.
 
-**Search:** Filter `videos` array by case-insensitive partial match on `title` and `source_file` basename. Use a `searchQuery` state variable with a debounce (250ms) or just filter on every keystroke (the list is small enough). Apply filter to both uncategorized videos and the total count display.
+**Search:** Filter `videos` array by case-insensitive partial match on `title` and `source_file` basename. Use a `searchQuery` state variable and filter on every keystroke — no debounce needed since the list is bounded and local. Apply filter to both uncategorized videos and the total count display.
 
-**Sort:** Options: "Newest first" (default, `processed_at` desc), "Oldest first" (`processed_at` asc), "Title A-Z" (`title` localeCompare), "Title Z-A" (`title` localeCompare reversed), "Longest first" (`duration_seconds` desc). Use a `sortOption` state variable. Apply sort after filter.
+**Sort:** Options: "Newest first" (default, `processed_at` desc), "Oldest first" (`processed_at` asc), "Title A-Z" (`title` localeCompare), "Title Z-A" (`title` localeCompare reversed). Use a `sortOption` state variable. Apply sort after filter.
 
 Render the toolbar as a flex row: search input (flex-1), sort dropdown (fixed width). Use a native `<select>` for the sort — simple, accessible, no dependency needed. Position below the header, above the folders section.
 
@@ -323,9 +326,9 @@ Satisfies R6.
 **Depends on:** none
 **Files:** `package.json`, `components/mvp/FolderView.tsx`
 
-Install `@dnd-kit/core` and `@dnd-kit/sortable` as dependencies. In `FolderView`, wrap the video list with `DndContext` and `SortableContext`. Each video card becomes a `useSortable` item. On drag end (`onDragEnd`), compute the new order from `arrayMove`, update local state, and persist by calling `PUT /api/folders/${folderId}/reorder` with the new `videoIds` array.
+Install `@dnd-kit/core` and `@dnd-kit/sortable` as dependencies. In `FolderView`, wrap the video list with `DndContext` and `SortableContext`. Each video card becomes a `useSortable` item. On drag end (`onDragEnd`), compute the new order from `arrayMove`, update local state, and persist by calling `PATCH /api/folders/${folderId}` with `{ videoIds: newOrder }`.
 
-The existing `reorderVideosInFolder()` in `lib/folders.ts` already handles the persistence logic and validates that all IDs are present. The API endpoint needs to be created (5.2).
+The existing `PATCH /api/folders/[id]` endpoint (in `app/api/folders/[id]/route.ts`) already accepts `{ videoIds }` and calls `reorderVideosInFolder()` from `lib/folders.ts`, which validates all IDs are present. No new endpoint needed.
 
 Use `verticalListSortingStrategy` from `@dnd-kit/sortable`. Add a drag handle (grip icon) to the left of each video card — the existing order number circle can become the drag handle. Use `CSS.Transform.toString(transform)` for the drag visual.
 
@@ -340,26 +343,6 @@ Satisfies R7.
 
 **Verify:** Manual: open a folder with 3+ videos, drag to reorder, refresh, confirm order persisted.
 
-#### 5.2 Create reorder API endpoint
-
-**Depends on:** none
-**Files:** `app/api/folders/[id]/reorder/route.ts` (new), `__tests__/api/folder-reorder.test.ts` (new)
-
-Create a `PUT` endpoint that accepts `{ videoIds: string[] }` and calls `reorderVideosInFolder(folderId, videoIds)` from `lib/folders.ts`. Validate with Zod: `videoIds` must be a non-empty string array. Return 400 if validation fails, 404 if folder not found, 200 with `{ success: true }` on success.
-
-Follow the existing folder API patterns in `app/api/folders/[id]/route.ts` for param handling (Next.js 15 async params pattern) and error responses.
-
-**Test scenarios:** (`__tests__/api/folder-reorder.test.ts`)
-
-- Valid reorder request → returns 200, folders.json updated with new order
-- Empty videoIds array → returns 400
-- Missing videoIds → returns 400
-- Non-existent folder → returns 404
-- videoIds with different IDs than folder contains → returns 400 (reorderVideosInFolder validates)
-- videoIds with subset of folder's IDs → returns 400
-
-**Verify:** `npm run test -- folder-reorder` passes.
-
 ---
 
 ## Section 6: Queue Progress Enhancement
@@ -369,55 +352,51 @@ Follow the existing folder API patterns in `app/api/folders/[id]/route.ts` for p
 **Depends on:** none
 **Files:** `components/mvp/QueuePanel.tsx`, `__tests__/components/QueuePanel.test.tsx`
 
-Enhance the progress display in `QueueItemRow` for processing items. Currently shows `item.progress?.message` and a progress bar for chunk counts. Add step-level context: map the `item.progress.step` value to a human-readable step name and show "Step N/6: StepName" format. The step names are: checking, extracting, transcribing, summarizing, blogging, finalizing (same as `STEPS` array currently in `page.tsx` — extract to a shared constant in `lib/constants.ts` or define inline in QueuePanel).
+Enhance the progress display in `QueueItemRow` for processing items. Currently shows `item.progress?.message` and a progress bar for chunk counts. Add step-level context: map `item.progress.step` (a string, typed as `string` in `QueueItemProgress` at `lib/queue.ts:8`) to a human-readable label and step number. Define the mapping inline in `QueuePanel.tsx` (QueuePanel is the sole consumer after ProcessingView removal — no shared constant needed):
 
-Display format: `"Transcribing — step 3/6"` below the filename, replacing the current bare `item.progress.message`. Keep the existing chunk progress bar for the transcribing step.
+| `progress.step`  | Label            | Step # |
+| ---------------- | ---------------- | ------ |
+| `"checking"`     | Checking         | 1/7    |
+| `"extracting"`   | Extracting Audio | 2/7    |
+| `"transcribing"` | Transcribing     | 3/7    |
+| `"summarizing"`  | Generating Notes | 4/7    |
+| `"organizing"`   | Organizing       | 5/7    |
+| `"blogging"`     | Creating Blog    | 6/7    |
+| `"finalizing"`   | Finalizing       | 7/7    |
+
+Display format: `"Transcribing — step 3/7"` below the filename, replacing the current bare `item.progress.message`. For unknown step values (e.g., `"loading"` during reprocess, `"complete"`), show the raw `progress.message` as fallback. Keep the existing chunk progress bar for the transcribing step.
+
+When ProcessingView is removed from `page.tsx` (Section 3.2), delete the `STEPS` array and `getStepIndex` function from that file — they are no longer needed.
 
 Satisfies R8.
 
 **Test scenarios:** (`__tests__/components/QueuePanel.test.tsx`)
 
-- Processing item with `progress.step: "transcribing"` → shows "Transcribing — step 3/6"
-- Processing item with `progress.step: "summarizing"` → shows "Generating Notes — step 4/6"
+- Processing item with `progress.step: "transcribing"` → shows "Transcribing — step 3/7"
+- Processing item with `progress.step: "summarizing"` → shows "Generating Notes — step 4/7"
+- Processing item with unknown step → shows `progress.message` as fallback
 - Processing item with no progress → shows "Processing..." fallback
 - Completed items → no step display, just status
 
 **Verify:** `npm run test -- QueuePanel` passes.
 
-#### 6.2 Add new video highlight in library
-
-**Depends on:** 3.3
-**Files:** `components/mvp/LibraryView.tsx`
-
-When a video finishes processing and appears in the library, briefly highlight it. Track "new" video IDs by comparing the video list before and after a refresh. When new IDs are detected, add them to a `newVideoIds` Set state. Render a colored left border (`border-l-4 border-blue-500`) and a small "New" badge on those rows. Remove the highlight after 5 seconds using `setTimeout` that clears IDs from the set.
-
-Satisfies R10.
-
-**Test scenarios:** (manual)
-
-- Process a video → appears in library with blue border and "New" badge
-- After 5 seconds → highlight fades/removes
-- Navigating away and back → no highlight (only on initial appearance)
-
-**Verify:** Manual: upload a video, watch for highlight when it completes.
-
 ---
 
 ## Testing Strategy
 
-- **Unit tests:** Vitest with React Testing Library. Follow existing patterns in `__tests__/components/LibraryView.test.tsx` (mock fetch, render component, assert DOM). New test files for: `CompactUploadBar`, `class-notes-delete`, `folder-reorder`. Extend existing `LibraryView.test.tsx` and `QueuePanel.test.tsx`.
-- **Integration tests:** The API route tests (`class-notes-delete`, `folder-reorder`) test the full route handler with mocked filesystem.
-- **Manual verification:** Each section has specific manual checks. Critical path: upload video → appears in queue → processes → appears in library with highlight → sort/filter works → delete sends to trash → drag-reorder in folder persists.
+- **Unit tests:** Vitest with React Testing Library. Follow existing patterns in `__tests__/components/LibraryView.test.tsx` (mock fetch, render component, assert DOM). New test files for: `CompactUploadBar`, `class-notes-delete`. Extend existing `LibraryView.test.tsx` and `QueuePanel.test.tsx`.
+- **Integration tests:** The API route test (`class-notes-delete`) tests the full route handler with mocked filesystem.
+- **Manual verification:** Each section has specific manual checks. Critical path: upload video → appears in queue → processes → appears in library → sort/filter works → delete sends to trash → drag-reorder in folder persists.
 
 ## Risks and Mitigations
 
-| Risk                                                     | Mitigation                                                                                                                                                                                                                |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Electron preload script not loading in packaged app      | Test with `npm run electron:build` before merge. Preload path must use `__dirname` which resolves differently in packaged vs dev mode — use `app.isPackaged` conditional.                                                 |
-| `@dnd-kit` bundle size impact                            | `@dnd-kit/core` is ~12KB gzipped, `@dnd-kit/sortable` ~4KB — acceptable for desktop app. Tree-shaking handles unused exports.                                                                                             |
-| Queue-based upload is a behavior change                  | Users currently see inline progress. After this change, progress moves to the bottom QueuePanel. The panel auto-expands (already implemented), so it should be discoverable.                                              |
-| Removing ProcessingView breaks the upload-and-wait flow  | Users who upload a single file and want to immediately see results will now need to click the completed item in the queue or notice the library refresh. Consider keeping a toast/notification when processing completes. |
-| `shell.trashItem()` path resolution in packaged Electron | The notes directory path must be absolute. `getNotesDirectory()` already returns an absolute path. Verify in packaged build.                                                                                              |
+| Risk                                                     | Mitigation                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Electron preload script not loading in packaged app      | Test with `npm run electron:build` before merge. Preload path: `app.isPackaged ? path.join(process.resourcesPath, 'preload.js') : path.join(__dirname, 'preload.js')`. In dev mode, `__dirname` resolves to the `electron/` folder. In packaged mode, preload must be in `extraResources` (configured in electron-builder) and loaded via `process.resourcesPath`. |
+| `@dnd-kit` bundle size impact                            | `@dnd-kit/core` is ~12KB gzipped, `@dnd-kit/sortable` ~4KB — acceptable for desktop app. Tree-shaking handles unused exports.                                                                                                                                                                                                                                      |
+| Queue-based upload is a behavior change                  | Users currently see inline progress. After this change, progress moves to the bottom QueuePanel. The panel auto-expands (already implemented), so it should be discoverable.                                                                                                                                                                                       |
+| Removing ProcessingView breaks the upload-and-wait flow  | Users who upload a single file and want to immediately see results will now need to click the completed item in the queue or notice the library refresh. Mitigated by Section 3.3: when a queue item completes, the library auto-refreshes and the QueuePanel already shows a "completed" status. The auto-expanding QueuePanel makes progress discoverable.       |
+| `shell.trashItem()` path resolution in packaged Electron | The notes directory path must be absolute. `getNotesDirectory()` already returns an absolute path. Verify in packaged build.                                                                                                                                                                                                                                       |
 
 ## Open Questions
 
