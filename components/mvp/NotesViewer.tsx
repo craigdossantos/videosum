@@ -20,6 +20,28 @@ import {
 } from "@/lib/markdown-parser";
 import { ChatWithArtifacts } from "@/components/ai-artifacts";
 
+// Inline TrashIcon component (matches LibraryView pattern)
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    </svg>
+  );
+}
+
 interface NotesViewerProps {
   id: string;
   title: string;
@@ -72,6 +94,7 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<"notes" | "blog">("notes");
   const [chatOpen, setChatOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Parse markdown sections for collapsible display
   const sections = useMemo(
@@ -118,6 +141,50 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
     a.download = `${title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-blog.md`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDelete = async () => {
+    if (deleting) return;
+
+    if (
+      !confirm("Delete this video permanently? This action cannot be undone.")
+    ) {
+      return;
+    }
+
+    setDeleting(true);
+
+    try {
+      // If Electron is available, move to OS trash first
+      const electronAPI = (
+        window as unknown as {
+          electronAPI?: {
+            trashItem: (
+              id: string,
+            ) => Promise<{ success: boolean; error?: string }>;
+          };
+        }
+      ).electronAPI;
+      if (electronAPI?.trashItem) {
+        await electronAPI.trashItem(id);
+      }
+
+      // Call DELETE API to clean up folders.json and remove from disk
+      const res = await fetch(`/api/class-notes/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to delete video");
+      }
+
+      // Navigate back to library after successful delete
+      onBack();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete video");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -183,6 +250,15 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
                   Blog
                 </button>
               )}
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                title="Delete video permanently"
+              >
+                <TrashIcon className="w-4 h-4" />
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
             </div>
           </div>
 

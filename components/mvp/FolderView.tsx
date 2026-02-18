@@ -9,6 +9,28 @@ import {
   XIcon,
 } from "./Icons";
 
+// Inline TrashIcon component (matches LibraryView pattern)
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    </svg>
+  );
+}
+
 interface ClassRecord {
   id: string;
   title: string;
@@ -72,6 +94,7 @@ const FolderView: React.FC<FolderViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [removingVideo, setRemovingVideo] = useState<string | null>(null);
+  const [deletingVideo, setDeletingVideo] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -133,6 +156,63 @@ const FolderView: React.FC<FolderViewProps> = ({
       setError(err instanceof Error ? err.message : "Failed to remove video");
     } finally {
       setRemovingVideo(null);
+    }
+  };
+
+  const handleDeleteVideo = async (videoId: string) => {
+    if (deletingVideo) return;
+
+    if (
+      !confirm("Delete this video permanently? This action cannot be undone.")
+    ) {
+      return;
+    }
+
+    setDeletingVideo(videoId);
+
+    try {
+      // If Electron is available, move to OS trash first
+      const electronAPI = (
+        window as unknown as {
+          electronAPI?: {
+            trashItem: (
+              id: string,
+            ) => Promise<{ success: boolean; error?: string }>;
+          };
+        }
+      ).electronAPI;
+      if (electronAPI?.trashItem) {
+        await electronAPI.trashItem(videoId);
+      }
+
+      // Call DELETE API to clean up folders.json and remove from disk
+      const res = await fetch(
+        `/api/class-notes/${encodeURIComponent(videoId)}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to delete video");
+      }
+
+      // Remove from local video list
+      setVideos((prev) => prev.filter((v) => v.id !== videoId));
+      // Remove from folder's videoIds state to prevent stale reorder state
+      setFolder((prev) =>
+        prev
+          ? {
+              ...prev,
+              videoIds: prev.videoIds.filter((id) => id !== videoId),
+              videoCount: prev.videoCount - 1,
+            }
+          : null,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete video");
+    } finally {
+      setDeletingVideo(null);
     }
   };
 
@@ -257,15 +337,29 @@ const FolderView: React.FC<FolderViewProps> = ({
                   </div>
                 </button>
 
-                {/* Remove button */}
+                {/* Delete button (permanent delete / OS trash) */}
+                <button
+                  onClick={() => handleDeleteVideo(video.id)}
+                  disabled={deletingVideo === video.id}
+                  className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                  title="Delete video permanently"
+                >
+                  {deletingVideo === video.id ? (
+                    <div className="w-5 h-5 animate-spin rounded-full border-2 border-red-300 border-t-red-600" />
+                  ) : (
+                    <TrashIcon className="w-5 h-5" />
+                  )}
+                </button>
+
+                {/* Remove from folder button */}
                 <button
                   onClick={() => handleRemoveVideo(video.id)}
                   disabled={removingVideo === video.id}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                   title="Remove from folder"
                 >
                   {removingVideo === video.id ? (
-                    <div className="w-5 h-5 animate-spin rounded-full border-2 border-gray-300 border-t-red-600" />
+                    <div className="w-5 h-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
                   ) : (
                     <XIcon className="w-5 h-5" />
                   )}
