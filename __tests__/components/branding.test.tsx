@@ -24,7 +24,11 @@ describe("Branding", () => {
 
   describe("Page header subtitle", () => {
     it("renders subtitle with 'Video Summarizer', not 'Class Notes'", async () => {
-      // Mock the library count fetch
+      // Mock the library and folders fetch calls (LibraryView fetches both)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve([]),
+      });
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve([]),
@@ -35,7 +39,7 @@ describe("Branding", () => {
       render(<DemoPage />);
 
       // The header subtitle should say "Video Summarizer" (appears in both
-      // the header subtitle and the idle view heading)
+      // the header subtitle and the empty state heading)
       const matches = screen.getAllByText("Video Summarizer");
       expect(matches.length).toBeGreaterThanOrEqual(1);
       // Verify the header subtitle specifically (the <span> element)
