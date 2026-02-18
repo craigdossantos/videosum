@@ -1,6 +1,6 @@
-import { readFile, writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { homedir } from 'os';
+import { readFile, writeFile, mkdir } from "fs/promises";
+import { join } from "path";
+import { homedir } from "os";
 
 export interface Folder {
   id: string;
@@ -21,16 +21,16 @@ export interface FolderWithMeta extends Folder {
 }
 
 function getOutputDir(): string {
-  const configDir = process.env.CLASS_NOTES_DIR || '~/ClassNotes';
+  const configDir = process.env.CLASS_NOTES_DIR || "~/ClassNotes";
   return configDir.replace(/^~/, homedir());
 }
 
 function getFoldersPath(): string {
-  return join(getOutputDir(), 'folders.json');
+  return join(getOutputDir(), "folders.json");
 }
 
 function getFolderContentDir(folderId: string): string {
-  return join(getOutputDir(), '_folders', folderId);
+  return join(getOutputDir(), "_folders", folderId);
 }
 
 /**
@@ -39,7 +39,7 @@ function getFolderContentDir(folderId: string): string {
 export async function getFoldersData(): Promise<FoldersData> {
   const foldersPath = getFoldersPath();
   try {
-    const content = await readFile(foldersPath, 'utf-8');
+    const content = await readFile(foldersPath, "utf-8");
     return JSON.parse(content);
   } catch {
     // File doesn't exist, return empty structure
@@ -61,8 +61,8 @@ async function saveFoldersData(data: FoldersData): Promise<void> {
 function generateId(name: string): string {
   const base = name
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
     .slice(0, 30);
   const suffix = Date.now().toString(36).slice(-4);
   return `${base}-${suffix}`;
@@ -82,12 +82,12 @@ export async function getFolders(): Promise<FolderWithMeta[]> {
       let hasCombinedBlog = false;
 
       try {
-        await readFile(join(folderContentDir, 'overview.md'), 'utf-8');
+        await readFile(join(folderContentDir, "overview.md"), "utf-8");
         hasOverview = true;
       } catch {}
 
       try {
-        await readFile(join(folderContentDir, 'combined-blog.md'), 'utf-8');
+        await readFile(join(folderContentDir, "combined-blog.md"), "utf-8");
         hasCombinedBlog = true;
       } catch {}
 
@@ -97,7 +97,7 @@ export async function getFolders(): Promise<FolderWithMeta[]> {
         hasOverview,
         hasCombinedBlog,
       };
-    })
+    }),
   );
 }
 
@@ -114,7 +114,7 @@ export async function getFolder(id: string): Promise<Folder | null> {
  */
 export async function createFolder(
   name: string,
-  description?: string
+  description?: string,
 ): Promise<Folder> {
   const data = await getFoldersData();
 
@@ -137,7 +137,7 @@ export async function createFolder(
  */
 export async function updateFolder(
   id: string,
-  updates: { name?: string; description?: string }
+  updates: { name?: string; description?: string },
 ): Promise<Folder | null> {
   const data = await getFoldersData();
   const folderIndex = data.folders.findIndex((f) => f.id === id);
@@ -175,7 +175,7 @@ export async function deleteFolder(id: string): Promise<boolean> {
  */
 export async function addVideoToFolder(
   folderId: string,
-  videoId: string
+  videoId: string,
 ): Promise<boolean> {
   const data = await getFoldersData();
   const folder = data.folders.find((f) => f.id === folderId);
@@ -195,7 +195,7 @@ export async function addVideoToFolder(
  */
 export async function removeVideoFromFolder(
   folderId: string,
-  videoId: string
+  videoId: string,
 ): Promise<boolean> {
   const data = await getFoldersData();
   const folder = data.folders.find((f) => f.id === folderId);
@@ -212,11 +212,35 @@ export async function removeVideoFromFolder(
 }
 
 /**
+ * Remove a video from all folders.
+ * Iterates every folder and filters out the videoId.
+ * No-op if folders.json is absent or video is not in any folder.
+ */
+export async function removeVideoFromAllFolders(
+  videoId: string,
+): Promise<void> {
+  const data = await getFoldersData();
+  let modified = false;
+
+  for (const folder of data.folders) {
+    const index = folder.videoIds.indexOf(videoId);
+    if (index !== -1) {
+      folder.videoIds.splice(index, 1);
+      modified = true;
+    }
+  }
+
+  if (modified) {
+    await saveFoldersData(data);
+  }
+}
+
+/**
  * Reorder videos in a folder
  */
 export async function reorderVideosInFolder(
   folderId: string,
-  videoIds: string[]
+  videoIds: string[],
 ): Promise<boolean> {
   const data = await getFoldersData();
   const folder = data.folders.find((f) => f.id === folderId);
@@ -265,11 +289,17 @@ export async function getFolderContent(folderId: string): Promise<{
   const result: { overview?: string; combinedBlog?: string } = {};
 
   try {
-    result.overview = await readFile(join(folderContentDir, 'overview.md'), 'utf-8');
+    result.overview = await readFile(
+      join(folderContentDir, "overview.md"),
+      "utf-8",
+    );
   } catch {}
 
   try {
-    result.combinedBlog = await readFile(join(folderContentDir, 'combined-blog.md'), 'utf-8');
+    result.combinedBlog = await readFile(
+      join(folderContentDir, "combined-blog.md"),
+      "utf-8",
+    );
   } catch {}
 
   return result;
@@ -280,7 +310,7 @@ export async function getFolderContent(folderId: string): Promise<{
  */
 export async function saveFolderContent(
   folderId: string,
-  content: { overview?: string; combinedBlog?: string }
+  content: { overview?: string; combinedBlog?: string },
 ): Promise<void> {
   const folderContentDir = getFolderContentDir(folderId);
 
@@ -288,9 +318,12 @@ export async function saveFolderContent(
   await mkdir(folderContentDir, { recursive: true });
 
   if (content.overview) {
-    await writeFile(join(folderContentDir, 'overview.md'), content.overview);
+    await writeFile(join(folderContentDir, "overview.md"), content.overview);
   }
   if (content.combinedBlog) {
-    await writeFile(join(folderContentDir, 'combined-blog.md'), content.combinedBlog);
+    await writeFile(
+      join(folderContentDir, "combined-blog.md"),
+      content.combinedBlog,
+    );
   }
 }

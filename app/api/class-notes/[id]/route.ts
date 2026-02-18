@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile, access } from "fs/promises";
+import { readFile, access, rm } from "fs/promises";
 import { join } from "path";
 import { getNotesDirectory } from "@/lib/settings";
+import { removeVideoFromAllFolders } from "@/lib/folders";
 
 interface ClassMetadata {
   title: string;
@@ -82,6 +83,32 @@ export async function GET(
     console.error("Notes error:", error);
     return NextResponse.json(
       { error: "Failed to load class notes" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const decodedId = decodeURIComponent(id);
+    const outputDir = await getNotesDirectory();
+    const fullPath = join(outputDir, decodedId);
+
+    // Always clean up folders.json, even if the folder is already gone from disk
+    await removeVideoFromAllFolders(decodedId);
+
+    // Attempt to remove from disk — force: true means no error if already gone
+    await rm(fullPath, { recursive: true, force: true });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Delete error:", error);
+    return NextResponse.json(
+      { error: "Failed to delete video" },
       { status: 500 },
     );
   }
