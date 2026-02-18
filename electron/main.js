@@ -1,13 +1,47 @@
-const { app, BrowserWindow, shell, Menu, dialog } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  shell,
+  Menu,
+  dialog,
+  ipcMain,
+} = require("electron");
 const { fork } = require("child_process");
 const path = require("path");
 const http = require("http");
+const os = require("os");
+const fs = require("fs");
 
 const isDev = process.env.NODE_ENV === "development";
 const PORT = 3005;
 
 let mainWindow;
 let serverProcess;
+
+// Resolve the notes directory using the same logic as lib/settings.ts.
+// Checks CLASS_NOTES_DIR env var, then ~/.videosum/config.json, then defaults to ~/VideoSum.
+function getNotesDirectory() {
+  const envDir = process.env.CLASS_NOTES_DIR;
+  if (envDir) {
+    if (envDir.startsWith("~/")) {
+      return path.join(os.homedir(), envDir.slice(2));
+    }
+    return envDir;
+  }
+
+  // Check global config for notesDirectory override
+  try {
+    const configPath = path.join(os.homedir(), ".videosum", "config.json");
+    const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    if (config.notesDirectory) {
+      return config.notesDirectory;
+    }
+  } catch {
+    // Config doesn't exist or is invalid, use default
+  }
+
+  return path.join(os.homedir(), "VideoSum");
+}
 
 // Check if server is ready
 function waitForServer(url, timeout = 30000) {
@@ -91,6 +125,9 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: app.isPackaged
+        ? path.join(process.resourcesPath, "preload.js")
+        : path.join(__dirname, "preload.js"),
     },
     show: false, // Don't show until ready
   });
@@ -205,6 +242,24 @@ function buildMenu() {
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
 }
+
+// IPC handler: move a video folder to the OS trash
+ipcMain.handle("trash-item", async (_event, videoId) => {
+  try {
+    const notesDir = getNotesDirectory();
+    const fullPath = path.join(notesDir, videoId);
+
+    await shell.trashItem(fullPath);
+    return { success: true };
+  } catch (err) {
+    // If the path doesn't exist, treat as success (already gone)
+    if (err.code === "ENOENT" || err.message?.includes("does not exist")) {
+      return { success: true };
+    }
+    console.error("[Electron] Failed to trash item:", err);
+    return { success: false, error: err.message };
+  }
+});
 
 // App ready
 app.whenReady().then(async () => {

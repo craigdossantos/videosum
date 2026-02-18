@@ -67,6 +67,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "electron/preload.js",
+        "to": "preload.js"
       }
     ],
     "mac": {
