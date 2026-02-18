@@ -11,6 +11,28 @@ import {
   ChevronRightIcon,
 } from "./Icons";
 
+// Inline TrashIcon component
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    </svg>
+  );
+}
+
 // Inline RefreshIcon component
 function RefreshIcon({ className }: { className?: string }) {
   return (
@@ -230,6 +252,47 @@ const LibraryView: React.FC<LibraryViewProps> = ({
     }
   };
 
+  const handleDelete = async (videoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!confirm("Delete this video? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      // If Electron is available, move to OS trash first
+      const electronAPI = (
+        window as unknown as {
+          electronAPI?: {
+            trashItem: (
+              id: string,
+            ) => Promise<{ success: boolean; error?: string }>;
+          };
+        }
+      ).electronAPI;
+      if (electronAPI?.trashItem) {
+        await electronAPI.trashItem(videoId);
+      }
+
+      // Call DELETE API to clean up folders.json and remove from disk
+      const res = await fetch(
+        `/api/class-notes/${encodeURIComponent(videoId)}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to delete video");
+      }
+
+      // Remove from local state
+      setVideos((prev) => prev.filter((v) => v.id !== videoId));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete video");
+    }
+  };
+
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
@@ -422,6 +485,15 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                     <RefreshIcon
                       className={`w-4 h-4 ${reprocessingIds.has(video.id) ? "animate-spin" : ""}`}
                     />
+                  </button>
+
+                  {/* Delete button */}
+                  <button
+                    onClick={(e) => handleDelete(video.id, e)}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Delete video"
+                  >
+                    <TrashIcon className="w-4 h-4" />
                   </button>
 
                   {/* Add to Folder dropdown */}

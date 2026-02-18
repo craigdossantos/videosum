@@ -59,6 +59,8 @@ describe("LibraryView", () => {
     mockOnSelectVideo = vi.fn();
     mockOnSelectFolder = vi.fn();
     mockOnBack = vi.fn();
+    // Clean up electronAPI in case a previous test set it
+    delete (window as unknown as Record<string, unknown>).electronAPI;
   });
 
   function mockSuccessfulFetch() {
@@ -646,6 +648,216 @@ describe("LibraryView", () => {
           screen.getByText("All videos are organized in folders."),
         ).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Delete Video", () => {
+    it("shows delete button for each uncategorized video", async () => {
+      // Use no folders so both videos are uncategorized
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockVideos),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve([]),
+        });
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Test Video 1")).toBeInTheDocument();
+        expect(screen.getByText("Test Video 2")).toBeInTheDocument();
+      });
+
+      const deleteButtons = screen.getAllByTitle("Delete video");
+      expect(deleteButtons).toHaveLength(2);
+    });
+
+    it("shows confirmation dialog when delete clicked", async () => {
+      mockSuccessfulFetch();
+
+      (global.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Test Video 2")).toBeInTheDocument();
+      });
+
+      const deleteButton = screen.getByTitle("Delete video");
+      fireEvent.click(deleteButton);
+
+      expect(global.confirm).toHaveBeenCalledWith(
+        "Delete this video? This action cannot be undone.",
+      );
+    });
+
+    it("calls DELETE API when confirmed", async () => {
+      mockSuccessfulFetch();
+
+      (global.confirm as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Test Video 2")).toBeInTheDocument();
+      });
+
+      const deleteButton = screen.getByTitle("Delete video");
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith("/api/class-notes/video-2", {
+          method: "DELETE",
+        });
+      });
+    });
+
+    it("does not call API when delete cancelled", async () => {
+      mockSuccessfulFetch();
+
+      (global.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Test Video 2")).toBeInTheDocument();
+      });
+
+      const deleteButton = screen.getByTitle("Delete video");
+      fireEvent.click(deleteButton);
+
+      expect(global.confirm).toHaveBeenCalled();
+      // Should not make another fetch beyond the initial 2
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("removes video from list after successful delete", async () => {
+      mockSuccessfulFetch();
+
+      (global.confirm as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Test Video 2")).toBeInTheDocument();
+      });
+
+      const deleteButton = screen.getByTitle("Delete video");
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        expect(screen.queryByText("Test Video 2")).not.toBeInTheDocument();
+      });
+    });
+
+    it("shows error and keeps video when delete fails", async () => {
+      mockSuccessfulFetch();
+
+      (global.confirm as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: "Server error" }),
+      });
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Test Video 2")).toBeInTheDocument();
+      });
+
+      const deleteButton = screen.getByTitle("Delete video");
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        expect(global.alert).toHaveBeenCalledWith("Failed to delete video");
+      });
+
+      // Video should still be in the list
+      expect(screen.getByText("Test Video 2")).toBeInTheDocument();
+    });
+
+    it("calls electronAPI.trashItem when available", async () => {
+      const mockTrashItem = vi.fn().mockResolvedValue({ success: true });
+      (window as unknown as Record<string, unknown>).electronAPI = {
+        trashItem: mockTrashItem,
+      };
+
+      mockSuccessfulFetch();
+
+      (global.confirm as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Test Video 2")).toBeInTheDocument();
+      });
+
+      const deleteButton = screen.getByTitle("Delete video");
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        expect(mockTrashItem).toHaveBeenCalledWith("video-2");
+      });
+
+      // Clean up
+      delete (window as unknown as Record<string, unknown>).electronAPI;
     });
   });
 
