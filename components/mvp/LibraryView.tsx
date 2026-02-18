@@ -394,6 +394,12 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                     <h3 className="font-medium text-gray-900 mb-1">
                       {video.title}
                     </h3>
+                    {video.source_file && (
+                      <p className="text-xs text-gray-400 truncate">
+                        {video.source_file.split("/").pop() ||
+                          video.source_file}
+                      </p>
+                    )}
                     <div className="flex items-center gap-4 text-sm text-gray-500">
                       <div className="flex items-center gap-1">
                         <ClockIcon className="w-4 h-4" />

@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from "react";
 import {
   ArrowLeftIcon,
   ClockIcon,
   CalendarIcon,
   FolderIcon,
   XIcon,
-} from './Icons';
+} from "./Icons";
 
 interface ClassRecord {
   id: string;
@@ -48,21 +48,25 @@ function formatDuration(seconds: number): string {
   const secs = seconds % 60;
 
   if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  return `${minutes}:${secs.toString().padStart(2, "0")}`;
 }
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 
-const FolderView: React.FC<FolderViewProps> = ({ folderId, onSelectVideo, onBack }) => {
+const FolderView: React.FC<FolderViewProps> = ({
+  folderId,
+  onSelectVideo,
+  onBack,
+}) => {
   const [folder, setFolder] = useState<FolderData | null>(null);
   const [videos, setVideos] = useState<ClassRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,13 +78,13 @@ const FolderView: React.FC<FolderViewProps> = ({ folderId, onSelectVideo, onBack
       setLoading(true);
       // Fetch folder details
       const folderRes = await fetch(`/api/folders/${folderId}`);
-      if (!folderRes.ok) throw new Error('Failed to load folder');
+      if (!folderRes.ok) throw new Error("Failed to load folder");
       const folderData: FolderData = await folderRes.json();
       setFolder(folderData);
 
       // Fetch all videos to get details for the ones in this folder
-      const videosRes = await fetch('/api/class-notes/library');
-      if (!videosRes.ok) throw new Error('Failed to load videos');
+      const videosRes = await fetch("/api/class-notes/library");
+      if (!videosRes.ok) throw new Error("Failed to load videos");
       const allVideos: ClassRecord[] = await videosRes.json();
 
       // Filter to only videos in this folder, maintaining order
@@ -90,7 +94,7 @@ const FolderView: React.FC<FolderViewProps> = ({ folderId, onSelectVideo, onBack
 
       setVideos(folderVideos);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load folder');
+      setError(err instanceof Error ? err.message : "Failed to load folder");
     } finally {
       setLoading(false);
     }
@@ -105,11 +109,14 @@ const FolderView: React.FC<FolderViewProps> = ({ folderId, onSelectVideo, onBack
     setRemovingVideo(videoId);
 
     try {
-      const res = await fetch(`/api/folders/${folderId}/videos?videoId=${videoId}`, {
-        method: 'DELETE',
-      });
+      const res = await fetch(
+        `/api/folders/${folderId}/videos?videoId=${videoId}`,
+        {
+          method: "DELETE",
+        },
+      );
 
-      if (!res.ok) throw new Error('Failed to remove video');
+      if (!res.ok) throw new Error("Failed to remove video");
 
       // Update local state
       setVideos((prev) => prev.filter((v) => v.id !== videoId));
@@ -120,10 +127,10 @@ const FolderView: React.FC<FolderViewProps> = ({ folderId, onSelectVideo, onBack
               videoIds: prev.videoIds.filter((id) => id !== videoId),
               videoCount: prev.videoCount - 1,
             }
-          : null
+          : null,
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove video');
+      setError(err instanceof Error ? err.message : "Failed to remove video");
     } finally {
       setRemovingVideo(null);
     }
@@ -146,7 +153,7 @@ const FolderView: React.FC<FolderViewProps> = ({ folderId, onSelectVideo, onBack
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
         <div className="text-center text-red-600">
-          <p>{error || 'Folder not found'}</p>
+          <p>{error || "Folder not found"}</p>
           <button
             onClick={onBack}
             className="mt-4 text-blue-600 hover:underline"
@@ -172,7 +179,9 @@ const FolderView: React.FC<FolderViewProps> = ({ folderId, onSelectVideo, onBack
           </button>
           <FolderIcon className="w-6 h-6 text-blue-500" />
           <div className="flex-1">
-            <h1 className="text-xl font-semibold text-gray-900">{folder.name}</h1>
+            <h1 className="text-xl font-semibold text-gray-900">
+              {folder.name}
+            </h1>
             {folder.description && (
               <p className="text-sm text-gray-500">{folder.description}</p>
             )}
@@ -183,7 +192,7 @@ const FolderView: React.FC<FolderViewProps> = ({ folderId, onSelectVideo, onBack
         <div className="flex items-center gap-6 mt-4 text-sm text-gray-500">
           <div className="flex items-center gap-1">
             <span className="font-medium text-gray-700">{videos.length}</span>
-            <span>video{videos.length !== 1 ? 's' : ''}</span>
+            <span>video{videos.length !== 1 ? "s" : ""}</span>
           </div>
           {totalDuration > 0 && (
             <div className="flex items-center gap-1">
@@ -231,6 +240,11 @@ const FolderView: React.FC<FolderViewProps> = ({ folderId, onSelectVideo, onBack
                   <h3 className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
                     {video.title}
                   </h3>
+                  {video.source_file && (
+                    <p className="text-xs text-gray-400 truncate">
+                      {video.source_file.split("/").pop() || video.source_file}
+                    </p>
+                  )}
                   <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
                     <div className="flex items-center gap-1">
                       <ClockIcon className="w-4 h-4" />
