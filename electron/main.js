@@ -184,7 +184,7 @@ function buildMenu() {
       label: "Help",
       submenu: [
         {
-          label: "Open Output Folder",
+          label: "Open Video Notes Folder",
           click: () => {
             const outputDir =
               process.env.CLASS_NOTES_DIR ||

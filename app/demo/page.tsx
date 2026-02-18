@@ -332,7 +332,7 @@ export default function DemoPage() {
             </h1>
           </button>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500">Class Notes Processor</span>
+            <span className="text-xs text-gray-500">Video Summarizer</span>
             <button
               onClick={() => setShowSettings(true)}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -358,7 +358,7 @@ export default function DemoPage() {
           <div className="space-y-8 animate-fade-in">
             <div className="text-center py-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-3">
-                Class Notes Generator
+                Video Summarizer
               </h2>
               <p className="text-gray-600 max-w-xl mx-auto">
                 Upload a video lecture or meeting recording to automatically

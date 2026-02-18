@@ -319,7 +319,7 @@ const NotesViewerCollapsible: React.FC<NotesViewerProps> = ({
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <div>
               <h2 className="font-semibold text-gray-900">
-                Ask about this class
+                Ask about this video
               </h2>
               <p className="text-sm text-gray-500">Chat with the transcript</p>
             </div>
@@ -338,7 +338,7 @@ const NotesViewerCollapsible: React.FC<NotesViewerProps> = ({
               <div className="text-center text-gray-500 py-8">
                 <ChatIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p className="text-sm">
-                  Ask questions about the class content.
+                  Ask questions about the video content.
                 </p>
                 <p className="text-sm mt-1">
                   Try: &quot;What were the main topics?&quot;
