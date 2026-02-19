@@ -86,6 +86,7 @@ interface LibraryViewProps {
   onSelectFolder: (id: string) => void;
   onBack: () => void;
   onVideoCountChange?: (count: number) => void;
+  refreshKey?: number;
 }
 
 function formatDuration(seconds: number): string {
@@ -113,6 +114,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   onSelectFolder,
   onBack,
   onVideoCountChange,
+  refreshKey,
 }) => {
   const [videos, setVideos] = useState<ClassRecord[]>([]);
   const [folders, setFolders] = useState<FolderRecord[]>([]);
@@ -152,7 +154,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, refreshKey]);
 
   // Report video count to parent
   useEffect(() => {

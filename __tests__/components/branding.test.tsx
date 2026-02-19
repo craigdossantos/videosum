@@ -1,5 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  mockEventSource,
+  restoreEventSource,
+  clearEventSources,
+} from "@/__mocks__/EventSource";
 
 // Mock fetch
 const mockFetch = vi.fn();
@@ -20,6 +25,12 @@ vi.mock("@/components/ai-artifacts", () => ({
 describe("Branding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEventSource();
+    clearEventSources();
+  });
+
+  afterEach(() => {
+    restoreEventSource();
   });
 
   describe("Page header subtitle", () => {

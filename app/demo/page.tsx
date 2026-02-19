@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import UploadCard from "@/components/mvp/UploadCard";
 import CompactUploadBar from "@/components/mvp/CompactUploadBar";
 import NotesViewer from "@/components/mvp/NotesViewer";
 import LibraryView from "@/components/mvp/LibraryView";
 import FolderView from "@/components/mvp/FolderView";
+import { QueuePanel } from "@/components/mvp/QueuePanel";
 import { SettingsModal } from "@/components/mvp/SettingsModal";
 import { SettingsIcon } from "@/components/mvp/Icons";
+import { useQueueEvents } from "@/hooks/useQueueEvents";
 
 type ViewState = "library" | "folder" | "viewing";
 
@@ -28,6 +30,22 @@ export default function DemoPage() {
   const [error, setError] = useState<string | null>(null);
   const [videoCount, setVideoCount] = useState<number>(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Queue system for real-time processing state
+  const { queueState, removeItem, retryItem, clearCompleted } =
+    useQueueEvents();
+
+  // Auto-refresh library when a queue item completes
+  const prevCompletedCountRef = useRef(0);
+  useEffect(() => {
+    const completedCount =
+      queueState?.items.filter((i) => i.status === "completed").length ?? 0;
+    if (completedCount > prevCompletedCountRef.current) {
+      setRefreshKey((k) => k + 1);
+    }
+    prevCompletedCountRef.current = completedCount;
+  }, [queueState?.items]);
 
   const handleFilesSelect = useCallback(async (files: File[]) => {
     if (!files.length) return;
@@ -170,6 +188,7 @@ export default function DemoPage() {
             onSelectFolder={handleSelectFolder}
             onBack={handleBackToLibrary}
             onVideoCountChange={handleVideoCountChange}
+            refreshKey={refreshKey}
           />
         )}
 
@@ -186,6 +205,17 @@ export default function DemoPage() {
       <SettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      {/* Queue Panel — fixed bottom bar for processing progress */}
+      <QueuePanel
+        queueState={queueState}
+        onRemoveItem={removeItem}
+        onRetryItem={retryItem}
+        onClearCompleted={clearCompleted}
+        onViewNotes={(folderId) => {
+          handleViewFromLibrary(folderId);
+        }}
       />
     </div>
   );
