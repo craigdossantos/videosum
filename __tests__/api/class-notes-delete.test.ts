@@ -119,6 +119,18 @@ describe("DELETE /api/class-notes/[id]", () => {
     expect(mockRemoveFromAll).toHaveBeenCalledWith("not-in-folders");
   });
 
+  it("rejects path traversal attempts", async () => {
+    const req = new Request("http://localhost/api/class-notes/..%2F..%2Fetc", {
+      method: "DELETE",
+    });
+    const response = await DELETE(req, {
+      params: Promise.resolve({ id: "..%2F..%2Fetc" }),
+    });
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe("Invalid ID");
+  });
+
   it("DELETE with valid ID that is in 2 folders removes from both", async () => {
     const params = Promise.resolve({ id: "multi-folder-video" });
     const response = await DELETE(

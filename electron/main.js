@@ -242,8 +242,18 @@ function buildMenu() {
 // IPC handler: move a video folder to the OS trash
 ipcMain.handle("trash-item", async (_event, videoId) => {
   try {
+    if (
+      typeof videoId !== "string" ||
+      videoId.length === 0 ||
+      videoId.length > 500
+    ) {
+      return { success: false, error: "Invalid video ID" };
+    }
     const notesDir = getNotesDirectory();
-    const fullPath = path.join(notesDir, videoId);
+    const fullPath = path.resolve(path.join(notesDir, videoId));
+    if (!fullPath.startsWith(path.resolve(notesDir) + path.sep)) {
+      return { success: false, error: "Invalid video ID" };
+    }
 
     await shell.trashItem(fullPath);
     return { success: true };

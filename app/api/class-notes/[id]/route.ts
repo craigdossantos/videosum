@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile, access, rm } from "fs/promises";
-import { join } from "path";
+import { resolve, join } from "path";
 import { getNotesDirectory } from "@/lib/settings";
 import { removeVideoFromAllFolders } from "@/lib/folders";
+
+function resolveVideoPath(outputDir: string, id: string): string | null {
+  const fullPath = resolve(join(outputDir, id));
+  const resolvedBase = resolve(outputDir);
+  if (!fullPath.startsWith(resolvedBase + "/") && fullPath !== resolvedBase) {
+    return null;
+  }
+  return fullPath;
+}
 
 interface ClassMetadata {
   title: string;
@@ -45,7 +54,11 @@ export async function GET(
     // Decode URL-encoded characters
     const decodedId = decodeURIComponent(id);
     const outputDir = await getNotesDirectory();
-    const classDir = join(outputDir, decodedId);
+    const classDir = resolveVideoPath(outputDir, decodedId);
+
+    if (!classDir) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
 
     // Check if directory exists
     try {
@@ -96,7 +109,11 @@ export async function DELETE(
     const { id } = await params;
     const decodedId = decodeURIComponent(id);
     const outputDir = await getNotesDirectory();
-    const fullPath = join(outputDir, decodedId);
+    const fullPath = resolveVideoPath(outputDir, decodedId);
+
+    if (!fullPath) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
 
     // Always clean up folders.json, even if the folder is already gone from disk
     await removeVideoFromAllFolders(decodedId);

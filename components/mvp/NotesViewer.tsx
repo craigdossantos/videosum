@@ -162,7 +162,10 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
         }
       ).electronAPI;
       if (electronAPI?.trashItem) {
-        await electronAPI.trashItem(id);
+        const result = await electronAPI.trashItem(id);
+        if (!result.success) {
+          throw new Error(result.error || "Failed to move to trash");
+        }
       }
 
       // Call DELETE API to clean up folders.json and remove from disk
