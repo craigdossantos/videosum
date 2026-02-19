@@ -122,25 +122,21 @@ const NotesViewer: React.FC<NotesViewerProps> = ({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const handleDownloadSummary = () => {
-    const blob = new Blob([summaryMarkdown], { type: "text/markdown" });
+  const downloadMarkdown = (content: string, suffix: string) => {
+    const blob = new Blob([content], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-summary.md`;
+    a.download = `${title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${suffix}.md`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadSummary = () =>
+    downloadMarkdown(summaryMarkdown, "summary");
+
   const handleDownloadBlog = () => {
-    if (!blogMarkdown) return;
-    const blob = new Blob([blogMarkdown], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-blog.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (blogMarkdown) downloadMarkdown(blogMarkdown, "blog");
   };
 
   const handleDelete = async () => {

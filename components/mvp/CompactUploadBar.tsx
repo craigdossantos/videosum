@@ -31,29 +31,24 @@ const CompactUploadBar: React.FC<CompactUploadBarProps> = ({
     e.stopPropagation();
     setDragActive(false);
     if (disabled) return;
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const files = Array.from(e.dataTransfer.files).filter((file) =>
-        file.type.startsWith("video/"),
-      );
-      if (files.length > 0) {
-        onFilesSelect(files);
-      }
+    const files = Array.from(e.dataTransfer.files).filter((file) =>
+      file.type.startsWith("video/"),
+    );
+    if (files.length > 0) {
+      onFilesSelect(files);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const files = Array.from(e.target.files);
-      onFilesSelect(files);
-      // Reset input so same files can be selected again
-      e.target.value = "";
-    }
+    if (!e.target.files?.length) return;
+    onFilesSelect(Array.from(e.target.files));
+    // Reset input so same files can be selected again
+    e.target.value = "";
   };
 
   const handleChooseFiles = () => {
-    if (!disabled) {
-      fileInputRef.current?.click();
-    }
+    if (disabled) return;
+    fileInputRef.current?.click();
   };
 
   return (

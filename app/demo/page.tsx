@@ -103,9 +103,10 @@ export default function DemoPage() {
     setViewState("folder");
   }, []);
 
-  const handleVideoCountChange = useCallback((count: number) => {
-    setVideoCount(count);
-  }, []);
+  const handleVideoCountChange = useCallback(
+    (count: number) => setVideoCount(count),
+    [],
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -213,9 +214,7 @@ export default function DemoPage() {
         onRemoveItem={removeItem}
         onRetryItem={retryItem}
         onClearCompleted={clearCompleted}
-        onViewNotes={(folderId) => {
-          handleViewFromLibrary(folderId);
-        }}
+        onViewNotes={handleViewFromLibrary}
       />
     </div>
   );

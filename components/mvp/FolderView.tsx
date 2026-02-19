@@ -281,6 +281,20 @@ const FolderView: React.FC<FolderViewProps> = ({
     fetchData();
   }, [fetchData]);
 
+  // Shared helper: remove a video from local state (videos list + folder metadata)
+  const removeVideoFromLocalState = (videoId: string) => {
+    setVideos((prev) => prev.filter((v) => v.id !== videoId));
+    setFolder((prev) =>
+      prev
+        ? {
+            ...prev,
+            videoIds: prev.videoIds.filter((id) => id !== videoId),
+            videoCount: prev.videoCount - 1,
+          }
+        : null,
+    );
+  };
+
   const handleRemoveVideo = async (videoId: string) => {
     if (removingVideo) return;
     setRemovingVideo(videoId);
@@ -295,17 +309,7 @@ const FolderView: React.FC<FolderViewProps> = ({
 
       if (!res.ok) throw new Error("Failed to remove video");
 
-      // Update local state
-      setVideos((prev) => prev.filter((v) => v.id !== videoId));
-      setFolder((prev) =>
-        prev
-          ? {
-              ...prev,
-              videoIds: prev.videoIds.filter((id) => id !== videoId),
-              videoCount: prev.videoCount - 1,
-            }
-          : null,
-      );
+      removeVideoFromLocalState(videoId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove video");
     } finally {
@@ -351,18 +355,7 @@ const FolderView: React.FC<FolderViewProps> = ({
         throw new Error("Failed to delete video");
       }
 
-      // Remove from local video list
-      setVideos((prev) => prev.filter((v) => v.id !== videoId));
-      // Remove from folder's videoIds state to prevent stale reorder state
-      setFolder((prev) =>
-        prev
-          ? {
-              ...prev,
-              videoIds: prev.videoIds.filter((id) => id !== videoId),
-              videoCount: prev.videoCount - 1,
-            }
-          : null,
-      );
+      removeVideoFromLocalState(videoId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete video");
     } finally {

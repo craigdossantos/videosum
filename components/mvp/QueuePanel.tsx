@@ -353,25 +353,25 @@ export function QueuePanel({
     ) {
       setIsExpanded(true);
     }
-  }, [queueState?.items.length, queueState?.items]);
+  }, [queueState?.items]);
 
   // Don't render panel if no items
   if (!queueState || queueState.items.length === 0) {
     return null;
   }
 
-  const pendingCount = queueState.items.filter(
-    (i) => i.status === "pending",
-  ).length;
-  const processingCount = queueState.items.filter(
-    (i) => i.status === "processing",
-  ).length;
-  const completedCount = queueState.items.filter(
-    (i) => i.status === "completed",
-  ).length;
-  const failedCount = queueState.items.filter(
-    (i) => i.status === "failed",
-  ).length;
+  const counts = { pending: 0, processing: 0, completed: 0, failed: 0 };
+  for (const item of queueState.items) {
+    if (item.status in counts) {
+      counts[item.status as keyof typeof counts]++;
+    }
+  }
+  const {
+    pending: pendingCount,
+    processing: processingCount,
+    completed: completedCount,
+    failed: failedCount,
+  } = counts;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">

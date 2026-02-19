@@ -270,7 +270,7 @@ const NotesViewerCollapsible: React.FC<NotesViewerProps> = ({
 
         {/* Content - Collapsible Sections */}
         <div className="p-6 md:p-10 space-y-6">
-          {sections.map((section, index) => (
+          {sections.map((section) => (
             <Collapsible
               key={section.title}
               open={sectionStates[section.title]}

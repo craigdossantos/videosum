@@ -12,7 +12,6 @@ const http = require("http");
 const os = require("os");
 const fs = require("fs");
 
-const isDev = process.env.NODE_ENV === "development";
 const PORT = 3005;
 
 let mainWindow;
@@ -223,10 +222,7 @@ function buildMenu() {
         {
           label: "Open Video Notes Folder",
           click: () => {
-            const outputDir =
-              process.env.CLASS_NOTES_DIR ||
-              path.join(require("os").homedir(), "ClassNotes");
-            shell.openPath(outputDir);
+            shell.openPath(getNotesDirectory());
           },
         },
         {

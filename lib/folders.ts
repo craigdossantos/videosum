@@ -73,7 +73,6 @@ function generateId(name: string): string {
  */
 export async function getFolders(): Promise<FolderWithMeta[]> {
   const data = await getFoldersData();
-  const outputDir = getOutputDir();
 
   return Promise.all(
     data.folders.map(async (folder) => {
