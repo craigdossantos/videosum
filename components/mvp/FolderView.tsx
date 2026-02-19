@@ -2,6 +2,23 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   ArrowLeftIcon,
   ClockIcon,
   CalendarIcon,
@@ -27,6 +44,31 @@ function TrashIcon({ className }: { className?: string }) {
       <path d="M3 6h18" />
       <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
       <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    </svg>
+  );
+}
+
+// 6-dot grip icon for drag handle
+function GripVerticalIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="9" cy="5" r="1" fill="currentColor" />
+      <circle cx="15" cy="5" r="1" fill="currentColor" />
+      <circle cx="9" cy="12" r="1" fill="currentColor" />
+      <circle cx="15" cy="12" r="1" fill="currentColor" />
+      <circle cx="9" cy="19" r="1" fill="currentColor" />
+      <circle cx="15" cy="19" r="1" fill="currentColor" />
     </svg>
   );
 }
@@ -84,6 +126,111 @@ function formatDate(dateStr: string): string {
   });
 }
 
+interface SortableVideoCardProps {
+  video: ClassRecord;
+  onSelectVideo: (id: string) => void;
+  onDeleteVideo: (id: string) => void;
+  onRemoveVideo: (id: string) => void;
+  deletingVideo: string | null;
+  removingVideo: string | null;
+}
+
+function SortableVideoCard({
+  video,
+  onSelectVideo,
+  onDeleteVideo,
+  onRemoveVideo,
+  deletingVideo,
+  removingVideo,
+}: SortableVideoCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: video.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors group bg-white"
+    >
+      {/* Drag handle (replaces order number) */}
+      <button
+        className="flex-shrink-0 cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-gray-600 rounded touch-none"
+        aria-label="Drag to reorder"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVerticalIcon className="w-5 h-5" />
+      </button>
+
+      {/* Video info */}
+      <button
+        onClick={() => onSelectVideo(video.id)}
+        className="flex-1 text-left"
+      >
+        <h3 className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+          {video.title}
+        </h3>
+        {video.source_file && (
+          <p className="text-xs text-gray-400 truncate">
+            {video.source_file.split("/").pop() || video.source_file}
+          </p>
+        )}
+        <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
+          <div className="flex items-center gap-1">
+            <ClockIcon className="w-4 h-4" />
+            <span>{formatDuration(video.duration_seconds)}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <CalendarIcon className="w-4 h-4" />
+            <span>{formatDate(video.processed_at)}</span>
+          </div>
+        </div>
+      </button>
+
+      {/* Delete button (permanent delete / OS trash) */}
+      <button
+        onClick={() => onDeleteVideo(video.id)}
+        disabled={deletingVideo === video.id}
+        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+        title="Delete video permanently"
+      >
+        {deletingVideo === video.id ? (
+          <div className="w-5 h-5 animate-spin rounded-full border-2 border-red-300 border-t-red-600" />
+        ) : (
+          <TrashIcon className="w-5 h-5" />
+        )}
+      </button>
+
+      {/* Remove from folder button */}
+      <button
+        onClick={() => onRemoveVideo(video.id)}
+        disabled={removingVideo === video.id}
+        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+        title="Remove from folder"
+      >
+        {removingVideo === video.id ? (
+          <div className="w-5 h-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+        ) : (
+          <XIcon className="w-5 h-5" />
+        )}
+      </button>
+    </div>
+  );
+}
+
 const FolderView: React.FC<FolderViewProps> = ({
   folderId,
   onSelectVideo,
@@ -95,6 +242,13 @@ const FolderView: React.FC<FolderViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [removingVideo, setRemovingVideo] = useState<string | null>(null);
   const [deletingVideo, setDeletingVideo] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const fetchData = useCallback(async () => {
     try {
@@ -216,6 +370,49 @@ const FolderView: React.FC<FolderViewProps> = ({
     }
   };
 
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+
+      if (!over || active.id === over.id || !folder) return;
+
+      const oldIndex = videos.findIndex((v) => v.id === active.id);
+      const newIndex = videos.findIndex((v) => v.id === over.id);
+
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      const newVideos = arrayMove(videos, oldIndex, newIndex);
+      const newVideoIds = newVideos.map((v) => v.id);
+
+      // Optimistic update: apply new order locally immediately
+      setVideos(newVideos);
+      setFolder((prev) => (prev ? { ...prev, videoIds: newVideoIds } : null));
+
+      // Persist the new order via PATCH
+      try {
+        const res = await fetch(`/api/folders/${folderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ videoIds: newVideoIds }),
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to save new order");
+        }
+      } catch (err) {
+        // Revert on failure
+        setError(
+          err instanceof Error ? err.message : "Failed to save new order",
+        );
+        setVideos(videos);
+        setFolder((prev) =>
+          prev ? { ...prev, videoIds: prev.videoIds } : null,
+        );
+      }
+    },
+    [videos, folder, folderId],
+  );
+
   const totalDuration = videos.reduce((acc, v) => acc + v.duration_seconds, 0);
 
   if (loading) {
@@ -301,72 +498,30 @@ const FolderView: React.FC<FolderViewProps> = ({
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
-            {videos.map((video, index) => (
-              <div
-                key={video.id}
-                className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors group"
-              >
-                {/* Order number */}
-                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-600 flex-shrink-0">
-                  {index + 1}
-                </div>
-
-                {/* Video info */}
-                <button
-                  onClick={() => onSelectVideo(video.id)}
-                  className="flex-1 text-left"
-                >
-                  <h3 className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                    {video.title}
-                  </h3>
-                  {video.source_file && (
-                    <p className="text-xs text-gray-400 truncate">
-                      {video.source_file.split("/").pop() || video.source_file}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
-                    <div className="flex items-center gap-1">
-                      <ClockIcon className="w-4 h-4" />
-                      <span>{formatDuration(video.duration_seconds)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <CalendarIcon className="w-4 h-4" />
-                      <span>{formatDate(video.processed_at)}</span>
-                    </div>
-                  </div>
-                </button>
-
-                {/* Delete button (permanent delete / OS trash) */}
-                <button
-                  onClick={() => handleDeleteVideo(video.id)}
-                  disabled={deletingVideo === video.id}
-                  className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                  title="Delete video permanently"
-                >
-                  {deletingVideo === video.id ? (
-                    <div className="w-5 h-5 animate-spin rounded-full border-2 border-red-300 border-t-red-600" />
-                  ) : (
-                    <TrashIcon className="w-5 h-5" />
-                  )}
-                </button>
-
-                {/* Remove from folder button */}
-                <button
-                  onClick={() => handleRemoveVideo(video.id)}
-                  disabled={removingVideo === video.id}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                  title="Remove from folder"
-                >
-                  {removingVideo === video.id ? (
-                    <div className="w-5 h-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
-                  ) : (
-                    <XIcon className="w-5 h-5" />
-                  )}
-                </button>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={videos.map((v) => v.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-2">
+                {videos.map((video) => (
+                  <SortableVideoCard
+                    key={video.id}
+                    video={video}
+                    onSelectVideo={onSelectVideo}
+                    onDeleteVideo={handleDeleteVideo}
+                    onRemoveVideo={handleRemoveVideo}
+                    deletingVideo={deletingVideo}
+                    removingVideo={removingVideo}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
     </div>
