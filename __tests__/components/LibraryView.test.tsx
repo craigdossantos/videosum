@@ -1002,4 +1002,386 @@ describe("LibraryView", () => {
       expect(mockOnSelectVideo).toHaveBeenCalledWith("video-click");
     });
   });
+
+  describe("Sort and Filter", () => {
+    const sortFilterVideos = [
+      {
+        id: "video-a",
+        title: "Alpha Lecture",
+        source_file: "/path/to/alpha-lecture.mp4",
+        source_hash: "aaa",
+        duration_seconds: 100,
+        processed_at: "2024-01-10T10:00:00Z",
+        costs: { transcription: 0.1, summarization: 0.05, total: 0.15 },
+      },
+      {
+        id: "video-b",
+        title: "Beta Workshop",
+        source_file: "/path/to/beta-workshop.mp4",
+        source_hash: "bbb",
+        duration_seconds: 200,
+        processed_at: "2024-01-15T10:00:00Z",
+        costs: { transcription: 0.1, summarization: 0.05, total: 0.15 },
+      },
+      {
+        id: "video-c",
+        title: "Charlie Lecture Notes",
+        source_file: "/path/to/charlie-lecture.mp4",
+        source_hash: "ccc",
+        duration_seconds: 300,
+        processed_at: "2024-01-12T10:00:00Z",
+        costs: { transcription: 0.1, summarization: 0.05, total: 0.15 },
+      },
+    ];
+
+    function mockSortFilterFetch() {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(sortFilterVideos),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve([]),
+        });
+    }
+
+    it("renders search input and sort dropdown", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByPlaceholderText("Search videos..."),
+        ).toBeInTheDocument();
+        expect(screen.getByRole("combobox")).toBeInTheDocument();
+      });
+    });
+
+    it("default sort is newest first (processed_at desc)", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      });
+
+      const videoElements = screen
+        .getAllByRole("button")
+        .filter((el) => el.classList.contains("flex-1"));
+      const titles = videoElements
+        .map((el) => {
+          const h3 = el.querySelector("h3");
+          return h3?.textContent;
+        })
+        .filter(Boolean);
+
+      // Newest first: Beta (Jan 15) > Charlie (Jan 12) > Alpha (Jan 10)
+      expect(titles).toEqual([
+        "Beta Workshop",
+        "Charlie Lecture Notes",
+        "Alpha Lecture",
+      ]);
+    });
+
+    it("search 'lecture' shows only matching videos", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText("Search videos...");
+      fireEvent.change(searchInput, { target: { value: "lecture" } });
+
+      // Alpha Lecture and Charlie Lecture Notes match
+      expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      expect(screen.getByText("Charlie Lecture Notes")).toBeInTheDocument();
+      // Beta Workshop does not match
+      expect(screen.queryByText("Beta Workshop")).not.toBeInTheDocument();
+    });
+
+    it("search with no matches shows 'No videos match' message", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText("Search videos...");
+      fireEvent.change(searchInput, { target: { value: "zzzznonexistent" } });
+
+      expect(screen.getByText(/No videos match/)).toBeInTheDocument();
+    });
+
+    it("sort by 'Title A-Z' orders alphabetically", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      });
+
+      const sortSelect = screen.getByRole("combobox");
+      fireEvent.change(sortSelect, { target: { value: "title-asc" } });
+
+      const videoElements = screen
+        .getAllByRole("button")
+        .filter((el) => el.classList.contains("flex-1"));
+      const titles = videoElements
+        .map((el) => {
+          const h3 = el.querySelector("h3");
+          return h3?.textContent;
+        })
+        .filter(Boolean);
+
+      expect(titles).toEqual([
+        "Alpha Lecture",
+        "Beta Workshop",
+        "Charlie Lecture Notes",
+      ]);
+    });
+
+    it("sort + search combined: filter first, then sort", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      });
+
+      // Search for "lecture" - matches Alpha Lecture and Charlie Lecture Notes
+      const searchInput = screen.getByPlaceholderText("Search videos...");
+      fireEvent.change(searchInput, { target: { value: "lecture" } });
+
+      // Sort by Title A-Z
+      const sortSelect = screen.getByRole("combobox");
+      fireEvent.change(sortSelect, { target: { value: "title-asc" } });
+
+      const videoElements = screen
+        .getAllByRole("button")
+        .filter((el) => el.classList.contains("flex-1"));
+      const titles = videoElements
+        .map((el) => {
+          const h3 = el.querySelector("h3");
+          return h3?.textContent;
+        })
+        .filter(Boolean);
+
+      expect(titles).toEqual(["Alpha Lecture", "Charlie Lecture Notes"]);
+      expect(screen.queryByText("Beta Workshop")).not.toBeInTheDocument();
+    });
+
+    it("clear search shows all videos again", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText("Search videos...");
+
+      // Type a search
+      fireEvent.change(searchInput, { target: { value: "lecture" } });
+      expect(screen.queryByText("Beta Workshop")).not.toBeInTheDocument();
+
+      // Clear the search
+      fireEvent.change(searchInput, { target: { value: "" } });
+      expect(screen.getByText("Beta Workshop")).toBeInTheDocument();
+      expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      expect(screen.getByText("Charlie Lecture Notes")).toBeInTheDocument();
+    });
+
+    it("search is case-insensitive", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText("Search videos...");
+      fireEvent.change(searchInput, { target: { value: "LECTURE" } });
+
+      // Case-insensitive: "LECTURE" should match "Alpha Lecture" and "Charlie Lecture Notes"
+      expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      expect(screen.getByText("Charlie Lecture Notes")).toBeInTheDocument();
+      expect(screen.queryByText("Beta Workshop")).not.toBeInTheDocument();
+    });
+
+    it("search matches on source_file basename", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Beta Workshop")).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText("Search videos...");
+      // "beta-workshop" is in source_file basename but not in title "Beta Workshop" (no hyphen)
+      fireEvent.change(searchInput, { target: { value: "beta-workshop" } });
+
+      expect(screen.getByText("Beta Workshop")).toBeInTheDocument();
+      expect(screen.queryByText("Alpha Lecture")).not.toBeInTheDocument();
+    });
+
+    it("sort 'Title Z-A' orders reverse alphabetically", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      });
+
+      const sortSelect = screen.getByRole("combobox");
+      fireEvent.change(sortSelect, { target: { value: "title-desc" } });
+
+      const videoElements = screen
+        .getAllByRole("button")
+        .filter((el) => el.classList.contains("flex-1"));
+      const titles = videoElements
+        .map((el) => {
+          const h3 = el.querySelector("h3");
+          return h3?.textContent;
+        })
+        .filter(Boolean);
+
+      expect(titles).toEqual([
+        "Charlie Lecture Notes",
+        "Beta Workshop",
+        "Alpha Lecture",
+      ]);
+    });
+
+    it("sort 'Oldest first' orders by processed_at ascending", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Alpha Lecture")).toBeInTheDocument();
+      });
+
+      const sortSelect = screen.getByRole("combobox");
+      fireEvent.change(sortSelect, { target: { value: "date-asc" } });
+
+      const videoElements = screen
+        .getAllByRole("button")
+        .filter((el) => el.classList.contains("flex-1"));
+      const titles = videoElements
+        .map((el) => {
+          const h3 = el.querySelector("h3");
+          return h3?.textContent;
+        })
+        .filter(Boolean);
+
+      // Oldest first: Alpha (Jan 10) > Charlie (Jan 12) > Beta (Jan 15)
+      expect(titles).toEqual([
+        "Alpha Lecture",
+        "Charlie Lecture Notes",
+        "Beta Workshop",
+      ]);
+    });
+
+    it("updates uncategorized count when search filters videos", async () => {
+      mockSortFilterFetch();
+
+      render(
+        <LibraryView
+          onSelectVideo={mockOnSelectVideo}
+          onSelectFolder={mockOnSelectFolder}
+          onBack={mockOnBack}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("All Videos (3)")).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText("Search videos...");
+      fireEvent.change(searchInput, { target: { value: "lecture" } });
+
+      // Count should update to reflect filtered results
+      expect(screen.getByText("All Videos (2)")).toBeInTheDocument();
+    });
+  });
 });

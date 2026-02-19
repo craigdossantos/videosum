@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   FolderIcon,
   ClockIcon,
@@ -81,6 +81,8 @@ interface FolderRecord {
   hasCombinedBlog?: boolean;
 }
 
+type SortOption = "date-desc" | "date-asc" | "title-asc" | "title-desc";
+
 interface LibraryViewProps {
   onSelectVideo: (id: string) => void;
   onSelectFolder: (id: string) => void;
@@ -127,6 +129,8 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   const [reprocessingIds, setReprocessingIds] = useState<Set<string>>(
     new Set(),
   );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOption, setSortOption] = useState<SortOption>("date-desc");
 
   const fetchData = useCallback(async () => {
     try {
@@ -166,6 +170,46 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   const uncategorizedVideos = videos.filter(
     (v) => !organizedVideoIds.has(v.id),
   );
+
+  // Filter uncategorized videos by search query
+  const filteredVideos = useMemo(() => {
+    if (!searchQuery.trim()) return uncategorizedVideos;
+    const query = searchQuery.toLowerCase();
+    return uncategorizedVideos.filter((v) => {
+      const titleMatch = v.title.toLowerCase().includes(query);
+      const basename = v.source_file?.split("/").pop() || "";
+      const filenameMatch = basename.toLowerCase().includes(query);
+      return titleMatch || filenameMatch;
+    });
+  }, [uncategorizedVideos, searchQuery]);
+
+  // Sort filtered videos
+  const sortedVideos = useMemo(() => {
+    const sorted = [...filteredVideos];
+    switch (sortOption) {
+      case "date-desc":
+        sorted.sort(
+          (a, b) =>
+            new Date(b.processed_at).getTime() -
+            new Date(a.processed_at).getTime(),
+        );
+        break;
+      case "date-asc":
+        sorted.sort(
+          (a, b) =>
+            new Date(a.processed_at).getTime() -
+            new Date(b.processed_at).getTime(),
+        );
+        break;
+      case "title-asc":
+        sorted.sort((a, b) => a.title.localeCompare(b.title));
+        break;
+      case "title-desc":
+        sorted.sort((a, b) => b.title.localeCompare(a.title));
+        break;
+    }
+    return sorted;
+  }, [filteredVideos, sortOption]);
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim() || creatingFolder) return;
@@ -361,6 +405,29 @@ const LibraryView: React.FC<LibraryViewProps> = ({
         </div>
       </div>
 
+      {/* Search and Sort Toolbar */}
+      <div className="border-b border-gray-200 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search videos..."
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <select
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value as SortOption)}
+            className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="date-desc">Newest first</option>
+            <option value="date-asc">Oldest first</option>
+            <option value="title-asc">Title A-Z</option>
+            <option value="title-desc">Title Z-A</option>
+          </select>
+        </div>
+      </div>
+
       <div className="p-4 space-y-6">
         {/* Create Folder Form */}
         {showCreateFolder && (
@@ -433,8 +500,8 @@ const LibraryView: React.FC<LibraryViewProps> = ({
         <div>
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
             {folders.length > 0
-              ? `Uncategorized (${uncategorizedVideos.length})`
-              : `All Videos (${videos.length})`}
+              ? `Uncategorized (${filteredVideos.length})`
+              : `All Videos (${filteredVideos.length})`}
           </h2>
 
           {uncategorizedVideos.length === 0 && videos.length === 0 ? (
@@ -448,13 +515,17 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                 Upload your first video
               </button>
             </div>
+          ) : sortedVideos.length === 0 && searchQuery.trim() ? (
+            <p className="text-gray-500 text-sm py-4">
+              No videos match your search.
+            </p>
           ) : uncategorizedVideos.length === 0 ? (
             <p className="text-gray-500 text-sm py-4">
               All videos are organized in folders.
             </p>
           ) : (
             <div className="space-y-2">
-              {uncategorizedVideos.map((video) => (
+              {sortedVideos.map((video) => (
                 <div
                   key={video.id}
                   className="flex items-center gap-2 p-4 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"
