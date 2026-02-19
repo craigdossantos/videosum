@@ -210,6 +210,28 @@ function ExternalLinkIcon({ className }: { className?: string }) {
   );
 }
 
+// Step-level progress mapping: maps progress.step values from the Python
+// processing script to human-readable labels and step numbers.
+const STEP_MAP: Record<string, { label: string; stepNumber: number }> = {
+  checking: { label: "Checking", stepNumber: 1 },
+  extracting: { label: "Extracting Audio", stepNumber: 2 },
+  transcribing: { label: "Transcribing", stepNumber: 3 },
+  summarizing: { label: "Generating Notes", stepNumber: 4 },
+  organizing: { label: "Organizing", stepNumber: 5 },
+  blogging: { label: "Creating Blog", stepNumber: 6 },
+  finalizing: { label: "Finalizing", stepNumber: 7 },
+};
+const TOTAL_STEPS = 7;
+
+function getStepDisplay(progress: QueueItem["progress"]): string {
+  if (!progress) return "Processing...";
+  const stepInfo = STEP_MAP[progress.step];
+  if (stepInfo) {
+    return `${stepInfo.label} \u2014 step ${stepInfo.stepNumber}/${TOTAL_STEPS}`;
+  }
+  return progress.message || "Processing...";
+}
+
 function QueueItemRow({
   item,
   onRemove,
@@ -255,11 +277,9 @@ function QueueItemRow({
         </div>
         {item.status === "processing" && (
           <div className="mt-1">
-            {item.progress?.message && (
-              <div className="text-xs text-blue-600 mb-1 font-medium">
-                {item.progress.message}
-              </div>
-            )}
+            <div className="text-xs text-blue-600 mb-1 font-medium">
+              {getStepDisplay(item.progress)}
+            </div>
             {item.progress?.progress !== undefined &&
               item.progress?.total !== undefined && (
                 <div className="w-full bg-gray-200 rounded-full h-1.5">
